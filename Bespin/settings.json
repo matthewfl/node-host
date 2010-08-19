@@ -1,0 +1,5 @@
+{
+	"output_dir": "build"
+	"plugins": ["embedded", "html", "javascript", "stylesheet"],
+	"include_samples": true
+}
