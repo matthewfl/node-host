@@ -1,0 +1,14 @@
+{
+	"description": "facebox",
+	"dependencies": {
+			"jquery": "0.0.0"
+	},
+	"provides": [
+			{
+				"ep": "themestyles",
+				"url": [
+				       "facebox.less"
+				]
+			}
+		    ]		
+}

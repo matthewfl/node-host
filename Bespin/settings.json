@@ -1,5 +1,6 @@
 {
-	"output_dir": "build"
-	"plugins": ["embedded", "html", "javascript", "stylesheet"],
-	"include_samples": true
+	"output_dir": "../build",
+	"plugins": ["control", "embedded", "html","js_syntax", "stylesheet", "command_line", "editing_commands", "facebox"],
+	"search_path": [".."],
+	"include_sample": false
 }
