@@ -73,11 +73,11 @@ server.post('/newUser', function (req, res) {
     (function (data) {
 	if(!data.userName)
 	    res.notFound("User name not valid");
-	db.has("user_"+data.userName, function (has) {
+	db.has("login_"+data.userName, function (has) {
 	    if(has)
 		return router.staticHandler('./static/newUserName.html')(req,res);
 	    var pass = crypto.createHash('sha1').update(data.password).digest('hex');
-	    db.set("user_"+data.userName, pass);
+	    db.set("login_"+data.userName, pass);
 	    console.log("new user "+data.userName);
 	    res.redirect( "/#" + (userLogin[data.userName] = Math.random().toString().substring(2)) + "," + data.userName );
 	});
@@ -89,9 +89,10 @@ server.post('/newUser', function (req, res) {
     }
 });
 
-server.get('/', router.staticHandler('./static/index.html'))
+server.get(/\/Bespin(.*)$/, router.staticDirHandler('./Bespin/build', '/'));
+server.get(/\/resources\/(.*)$/, router.staticDirHandler('./Bespin/build', '/'));
 
-server.get(/\/(.*)$/, router.staticDirHandler('./Bespin/build', '/'));
-
+server.get('/', router.staticHandler('./static/index.html'));
+server.get(/\/(.*)$/, router.staticDirHandler('./static', '/'));
 
 server.listen(8080);
