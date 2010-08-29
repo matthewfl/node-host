@@ -1,9 +1,11 @@
 var crypto = require('crypto');
 var querystring = require('querystring');
+var http = require('http');
 
 var router = require('./lib/node-router');
 var server = router.getServer();
 var db = require('./db');
+var config = require('./config');
 
 db._isMaster();
 
@@ -15,41 +17,94 @@ function checkUser(d) {
 }
 
 var ajaxActions = {
-    login: function (data) {
-	return {user: data.user, token: (userLogin[data.user] = Math.random().toString().substring(2))};
+    login: function (data, user, back) {
+	db.get("login_"+data.user, function (p) {
+	    if(p == crypto.createHash('sha1').update(data.pass).digest('hex')) {
+		back({ok: true, user: data.user, token: (userLogin[data.user] = Math.random().toString().substring(2))});
+	    }else
+		back({ok: false});
+	});
     },
-    logout: function (data, user) {
+    logout: function (data, user, back) {
 	if(user)
 	    userLogin[user]=null;
+	back();
     },
-    list: function (data, user) {
-	return [user + " file1", "file 2"];
+    list: function (data, user, back) {
+	back([user + " file1", "file 2"]);
+    },
+    save: function (data, user, back) {
+	if(!user) return back();
+	db.set("fs_"+user+"_"+data.name, data.val, function () { back(); });
+    },
+    open: function (data, user, back) {
+	if(!user) return back();
+	db.get("fs_"+user+"_"+data.name, function(val) {
+	    if(val)
+		back({val: val, ok: true});
+	    else
+		back({ok: false});
+	});
+    },
+    test: function (data, user, back) {
+	var con = http.createClient(config.testPort, 'localhost');
+	var r = con.request('POST', '/', {
+	    "host": "load"
+	}, {'Content-Length': data.code.length});
+	r.on('response', function (response) {
+	    r.on('data', function (d) {
+		console.log(d);
+		//back(d);
+	    });
+	});
+	r.write(data.code);
+	r.end();
+	back(config.testBase);
     }
 };
 
 server.post('/ajax', function (req, res, match) {
     try {
-    var data="";
-    res.writeHead(200, {"Content-Type": "text/plain"});
-    req.on('data', function (d) {
-	data+=d.toString('ascii', 0);
-    });
-    req.on('end', function () {
-	var d = JSON.parse(data);
-	var ret=[];
-	var userName=null;
-	if(d.user && d.token)
-	    if(checkUser(d))
-		userName=d.user;
-	for(var i=0;i<d.actions.length;i++) {
-	    if(ajaxActions[d.actions[i].action])
-		ret.push(ajaxActions[d.actions[i].action](d.actions[i], userName) || {});
-	    else
-		ret.push({"error":"not found", "name":d.actions[i].action})
-	}
-	res.write(JSON.stringify(ret));
-	res.end();
-    });
+	var data="";
+	var EndCount=0;
+	res.writeHead(200, {"Content-Type": "text/plain"});
+	req.on('data', function (d) {
+	    data+=d.toString('ascii', 0);
+	});
+	req.on('end', function () {
+	    var d = JSON.parse(data);
+	    var ret=[];
+	    var userName=null;
+	    if(d.user && d.token)
+		if(checkUser(d))
+		    userName=d.user;
+	    EndCount++;
+	    for(var i=0;i<d.actions.length;i++) {
+		if(ajaxActions[d.actions[i].action]) {
+		    ret.push({});
+		    (function (act, dat, user, loc) {
+			EndCount++;
+			act(dat, user, function (d) {
+			    ret[loc]=d;
+			    EndCount--;
+			    if(!EndCount) {
+				res.write(JSON.stringify(ret));
+				res.end();
+			    }
+			});
+		    })(ajaxActions[d.actions[i].action], d.actions[i], userName, ret.length-1);
+		    
+		    //ret.push(ajaxActions[d.actions[i].action](d.actions[i], userName) || {});
+		    
+		}else
+		    ret.push({"error":"not found", "name":d.actions[i].action})
+	    }
+	    EndCount--;
+	    if(!EndCount) {
+		res.write(JSON.stringify(ret));
+		res.end();
+	    }
+	});
     }catch(e) {
 	console.log(e);
 	res.end();

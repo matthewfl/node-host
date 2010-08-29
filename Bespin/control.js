@@ -103,7 +103,7 @@ var $ = require('jquery').$;
 
 var loadFile=null;
 var loadValue = env.editor.value;
-var fileList=["program1", "program2"];
+var fileList=[];
 
 var userName=null;
 var userPass=null;
@@ -117,6 +117,7 @@ if(location.hash) {
 }
 
 exports.openCommand = function (args, request) {
+    if(!userToken) return request.done("Not logedin");
     if(!('file' in args)) {
 	env.commandLine.setInput('open ');
 	return;
@@ -125,11 +126,19 @@ exports.openCommand = function (args, request) {
     if(loadValue != env.editor.value)
 	if(!confirm(discardChanges)) return;
     loadFile = args['file'];
-    env.editor.value=loadValue=args['file'] + " content";
-    request.done("file loaded");
+    Ajax.Call({
+	"action": "open",
+	"name": loadFile
+    }, function (data) {
+	env.editor.value=loadValue=data.val;
+	if(request.args)
+	    request.done("file saved");
+    });
+    Ajax.send();
 };
 
 exports.saveCommand = function (args, request) {
+    if(!userToken) return requst.done("Not logedin");
     if(loadFile === null && (!('file' in args) || args['file']=="")) {
 	env.commandLine.setInput('save ');
 	return;
@@ -137,13 +146,27 @@ exports.saveCommand = function (args, request) {
     var file = ('file' in args) ? args['file'] : loadFile;
     loadValue=env.editor.value;
     loadFile=file;
-    Ajax.send
-    if(request.args)
-	request.done("file saved");
+    Ajax.Call({
+	"action": "save",
+	"name": loadFile,
+	"val": loadValue
+    }, function () {
+	if(request.args)
+	    request.done("file saved");
+    });
+    Ajax.send();
 };
 
 exports.testCommand = function (args, request) {
-    window.open("http://google.com");
+    // this seems to work with better with popup blockers
+    var win = window.open("");
+    Ajax.Call({
+	"action": "test",
+	"code": env.editor.value
+    }, function (p) {
+	win.location.href=p;
+    });
+    Ajax.send();
 };
 
 exports.newCommand = function (args, request) {
@@ -212,26 +235,30 @@ exports.loginCommand = function (args,request) {
 		]
 	    }),
 	    success: function (data) {
+		if(data[0].ok != true) {
+		    $("#login").fadeTo("slow", 1);
+		    alert("login failed");
+		    return;
+		}
 		userName=data[0].user;
 		userToken=data[0].token;
 		Ajax.Call('list', function(data) {
 		    fileList = data;
 		});
 		Ajax.send();
+		function r () {
+		    $("#login").remove();
+		    $(document).unbind('afterClose.facebox', r);
+		}
+		$(document).bind('afterClose.facebox', r);
+		$(document).trigger('close.facebox');
 	    },
 	    complete: function (a,b) {
-		if(b == "error")
-		    alert('try again later');
+		if(b == "error") {
+		    alert('try again latter');
+		}
 	    }
 	});
-	setTimeout(function () {
-	    function r () {
-		$("#login").remove();
-		$(document).unbind('afterClose.facebox', r);
-	    }
-	    $(document).bind('afterClose.facebox', r);
-	    $(document).trigger('close.facebox');
-	}, 500);
     });
 };
 

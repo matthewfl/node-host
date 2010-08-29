@@ -7,7 +7,7 @@ var store;
 
 exports.get = function (key, callback) {
     if(master)
-	store.get(key, function (err, doc, meta) { callback(doc) });
+	store.get(key, function (err, doc, meta) { callback(err ? null : doc) });
     else
 	queue.add("r"+key, callback);
 };

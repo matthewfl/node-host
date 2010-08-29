@@ -4,14 +4,26 @@
 <style> 
 html {margin: 0;padding: 0;width: 100%;height: 100%;}
 body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
-</style> 
+</style>
+<script>
+  (function () {
+  function check () {
+  var can = document.createElement('canvas');
+  if (typeof can.getContext != "function") return false;
+  var ctx = can.getContext("2d");
+  return !!(ctx.fillText || ctx.mozDrawText)
+  }
+  if(!check())
+  location.href="/old.html";
+  })();
+</script>
 
 <link href="BespinEmbedded.css" type="text/css" rel="stylesheet"> 
  
 <script type="text/javascript" src="BespinEmbedded.js"></script> 
 </head> 
-<body class="bespin" data-bespinoptions='{ "settings": { "tabstop": 4, "maxConsoleHeight": 150 }, "syntax": "js", "stealFocus": true }'
-> /*
+<body class="bespin" data-bespinoptions='{ "settings": { "tabstop": 2, "maxConsoleHeight": 150 }, "syntax": "js", "stealFocus": true }'
+>/*
  * Welcome to Node host
  * ctrl-b to run the current code on the server
  * ctrl-l to login/make a new user
@@ -21,8 +33,10 @@ body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
  * commands: test login/logout newuser new save open ls update
  */
 
-server = function (req, res) {
+var http = require('http');
+
+http.createServer(function (req, res) {
   res.writeHead(200, {'Content-Type': 'text/plain'});
   res.end('Hello World\n');
-};</body> 
+}).listen();</body> 
 </html> 
