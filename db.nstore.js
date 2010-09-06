@@ -75,7 +75,7 @@ exports._isMaster = function () {
 	stream.on('end', function (data) {
 	    stream.end();
 	});
-    }).listen(config.dbPort);
+    }).listen(config.testDbPort);
 
 };
 
@@ -87,7 +87,7 @@ var queue = {
     checkConnection: function () {
 	if(!queue.connection) {
 	    queue.running = true;
-	    queue.connection = net.createConnection(config.dbPort);
+	    queue.connection = net.createConnection(config.testDbPort);
 	    queue.connection.on('data', function (data) {
 		queue.buffer += data;
 		var l = queue.buffer.indexOf("\n");

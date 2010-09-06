@@ -1,5 +1,6 @@
 exports.basePort=8080;
-exports.dbPort=8081;
+
+
 
 exports.testPort=8090;
 exports.testBase="##.test.dev.matthewfl.com:8090"; // "##.localhost:8090"
@@ -9,3 +10,7 @@ exports.testTimeToLive=5*60*1000; // in ms
 exports.testDoNotOverwrite=true; // should be true in production
 
 exports.errorPage="http://localhost:8080/error";
+
+exports.testDbPort=8081;
+exports.dbPort='/tmp/tyrant';
+exports.dbHost="";
