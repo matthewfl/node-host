@@ -4,7 +4,6 @@ var jsmin = require('../lib/jsmin').jsmin;
 exports.build = function (code, user, back) {
     var ret={};
     var need={};
-    console.log(typeof code);
     ret._=jsmin("", code, 1);
     code.replace(/require\s*?\((.*)\)/g, function (r, v) {
 	try {

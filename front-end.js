@@ -47,19 +47,23 @@ var ajaxActions = {
 	});
     },
     test: function (data, user, back) {
-	var con = http.createClient(config.testPort, 'localhost');
-	var r = con.request('POST', '/', {
-	    "host": "load"
-	}, {'Content-Length': data.code.length});
-	r.on('response', function (response) {
-	    r.on('data', function (d) {
-		console.log(d);
-		//back(d);
+	try {
+	    var con = http.createClient(config.testPort, 'localhost');
+	    var r = con.request('POST', '/?key='+config.testSKey+'&user='+user, {
+		"host": config.testHost
+	    }, {'Content-Length': data.code.length});
+	    r.on('response', function (response) {
+		response.on('data', function (d) {
+		    back(d.toString('ascii', 0).replace(/error\n/, ""));
+		});
+		
 	    });
-	});
-	r.write(data.code);
-	r.end();
-	back(config.testBase);
+	    r.write(data.code);
+	    r.end();
+	}catch(e) {
+	    back(config.errorPage);
+	}
+	//back(config.testBase);
     }
 };
 
@@ -126,7 +130,7 @@ server.post('/newUser', function (req, res) {
     });
     req.on('end', function () {
     (function (data) {
-	if(!data.userName)
+	if(!data.userName || data.userName=="null")
 	    res.notFound("User name not valid");
 	db.has("login_"+data.userName, function (has) {
 	    if(has)

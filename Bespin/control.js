@@ -132,7 +132,7 @@ exports.openCommand = function (args, request) {
     }, function (data) {
 	env.editor.value=loadValue=data.val;
 	if(request.args)
-	    request.done("file saved");
+	    request.done("File opened");
     });
     Ajax.send();
 };
