@@ -3,9 +3,9 @@ var urlParse = require('url').parse;
 var config = require('./config');
 var sandbox = require('./sandbox');
 
-var box,boxes = {};
+var boxes = {};
 
-http.createServer(function (req, res) {
+var server = http.createServer(function (req, res) {
     console.log("connect", req.headers.host);
     //res.writeHead(200, {"Content-type": "text/plain"});
     if(req.headers.host == config.testHost) {
@@ -15,8 +15,8 @@ http.createServer(function (req, res) {
 	    data += d.toString('ascii', 0);
 	});
 	req.on('end', function () {
-	    console.log(data);
 	    var urlInfo = urlParse(req.url, true);
+	    console.log(data, urlInfo.query.user, urlInfo.query.app);
 	    if(urlInfo.query.key != config.testSKey) {
 		res.write("This test server has expired");
 		res.end();
@@ -46,4 +46,5 @@ http.createServer(function (req, res) {
 	    res.end();
 	}
     }
-}).listen(config.testPort);
+});
+server.listen(config.testPort);

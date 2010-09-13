@@ -1,5 +1,10 @@
 exports.basePort=8080;
 
+exports.productionStart=9000;
+exports.productionNumber=1;
+exports.productionBase=".dev.matthewfl.com:9000";
+
+exports.checkInterval=5*1000;
 
 
 exports.testPort=8090;

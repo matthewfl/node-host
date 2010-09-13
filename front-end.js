@@ -6,8 +6,9 @@ var router = require('./lib/node-router');
 var server = router.getServer();
 var db = require('./db');
 var config = require('./config');
+var async = require('./lib/async').async;
 
-db._isMaster();
+var sandbox = require('./sandbox');
 
 var userLogin = {};
 function checkUser(d) {
@@ -31,11 +32,23 @@ var ajaxActions = {
 	back();
     },
     list: function (data, user, back) {
-	back([user + " file1", "file 2"]);
+	async([
+	    [
+		function () { db.get("lsFs_"+user, this); },
+		function () { db.get("lsHost_"+user, this); }
+	    ],
+	    function () { back([(this[0] || "").split("*"), (this[1] || "").split("*")]); }
+	]);
     },
     save: function (data, user, back) {
 	if(!user) return back();
+	if(data.name.indexOf("*")!=-1) return back();
 	db.set("fs_"+user+"_"+data.name, data.val, function () { back(); });
+	db.get("lsFs_"+user, function (d) {
+	    d = d || "";
+	    if(d.indexOf(data.name)==-1)
+		db.set("lsFs_"+user, d+(d?"*":"")+data.name);
+	});
     },
     open: function (data, user, back) {
 	if(!user) return back();
@@ -56,7 +69,6 @@ var ajaxActions = {
 		response.on('data', function (d) {
 		    back(d.toString('ascii', 0).replace(/error\n/, ""));
 		});
-		
 	    });
 	    r.write(data.code);
 	    r.end();
@@ -64,6 +76,53 @@ var ajaxActions = {
 	    back(config.errorPage);
 	}
 	//back(config.testBase);
+    },
+    newHost: function (data, user, back) {
+	if(!user) return back(false);
+	if(!(/[^a-zA-Z0-9\-]/.exec(data.name)) return back(false);
+	db.get("owner_"+data.name, function (d) {
+	    if(d==user) {
+		return back(true);
+	    }else if(d==null) {
+		db.set("owner_"+data.name, user, function () { back(true); });
+		db.setCat("lsOwn_"+user, data.name+"*");
+	    }else
+		return back(false);
+	    
+	});
+    },
+    deploy: function (data, user, back) {
+	if(!user) return back(false);
+	db.get("owner_"+data.name, function (owner) {
+	    if(owner != user) {
+		back("you do not own that sub domain");
+		return;
+	    }
+	    var con = http.createClient(config.testPort, 'localhost');
+	    var r = con.request('POST', '/?key='+config.testSKey+'&user='+user, {
+		"host": config.testHost
+	    }, {'Content-Length': data.code.length});
+	    r.on('response', function (response) {
+		var data="";
+		response.on('data', function (d) {
+		    data+=d.toString('ascii',0);
+		    back(d.toString('ascii', 0).replace(/error\n/, ""));
+		});
+		response.on('end', function () {
+		    if(! (/error/.exec(data))) {
+			back("Deploy failed");
+			return;
+		    }
+		    sandbox.build(data.code, user, function (build) {
+			db.set("app_"+data.name, JSON.stringify({user: user, name: data.code, code: build}), function () {
+			    back("Deploy successful");
+			});
+		    });
+		});
+	    });
+	    r.write(data.code);
+	    r.end();
+	});
     }
 };
 

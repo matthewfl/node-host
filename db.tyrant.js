@@ -26,3 +26,8 @@ exports.remove = function (key, callback) {
     callback = callback || function () {};
     tyrant.out(key, function () { callback (); });
 };
+
+exports.setCat = function (key, value, callback) {
+    tyrant.putcat(key, value);
+    process.nextTick(callback);
+};

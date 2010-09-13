@@ -49,8 +49,8 @@
 	},
 	{
 	    "ep": "command",
-	    "name": "update",
-	    "pointer": "#updateCommand",
+	    "name": "deploy",
+	    "pointer": "#deployCommand",
 	    "description": "update the running program",
 	    "params": []
 	},
@@ -89,6 +89,14 @@
 	    "description": "Create a new user",
 	    "pointer": "#loginCommand",
 	    "params": []
+	},
+	{
+	    "ep": "command",
+	    "name": "docs",
+	    "description": "Docs for JsApp",
+	    "key": "ctrl_h",
+	    "pointer": "#docsCommand",
+	    "params":[]
 	}
     ]
 });
@@ -101,9 +109,10 @@ require('facebox'); // just to load it into jquery
 var env = require('environment').env;
 var $ = require('jquery').$;
 
-var loadFile=null;
+var loadFile="";
 var loadValue = env.editor.value;
 var fileList=[];
+var hostList=[];
 
 var userName=null;
 var userPass=null;
@@ -130,9 +139,10 @@ exports.openCommand = function (args, request) {
 	"action": "open",
 	"name": loadFile
     }, function (data) {
-	env.editor.value=loadValue=data.val;
+	if(!data.ok) { alert("File not found"); env.editor.value=""; loadFile="";}
+	else env.editor.value=loadValue=data.val;
 	if(request.args)
-	    request.done("File opened");
+	    request.done(data.ok ? "File opened" : "File not found");
     });
     Ajax.send();
 };
@@ -144,8 +154,10 @@ exports.saveCommand = function (args, request) {
 	return;
     }
     var file = ('file' in args) ? args['file'] : loadFile;
+    if(!file) return alert("No file name given");
     loadValue=env.editor.value;
     loadFile=file;
+    if(loadFile.indexOf("*")!=-1) {loadFile=null;return alert("File name can not containt *");}
     Ajax.Call({
 	"action": "save",
 	"name": loadFile,
@@ -155,6 +167,8 @@ exports.saveCommand = function (args, request) {
 	    request.done("file saved");
     });
     Ajax.send();
+    if(fileList.indexOf(loadFile)==-1)
+	fileList.push(loadFile);
 };
 
 exports.testCommand = function (args, request) {
@@ -177,16 +191,53 @@ exports.newCommand = function (args, request) {
     loadFile = null;
 };
 
-exports.updateCommand = function (args, request) {
-    var saveFile=false;
-    if(loadValue != env.editor.value)
-	saveFile=confirm("Would you like to save the file before updating");
+exports.deployCommand = function (args, request) {
+    //var saveFile=false;
+    if(!loadFile)
+	return alert("The file has no name, you must use the save command first to give it a name");
+    if(loadValue != env.editor.value) {
+	if(confirm("Would you like to save the file before updating")) {
+	    loadValue=env.editor.value;
+	    Ajax.Call({
+		"action": "save",
+		"name": loadFile,
+		"val": loadValue
+	    });
+	}
+    }
     // stuff here
-    $.facebox('hello world');
+    $.facebox('<div id="deploy"><select id="deploy-host" style="width:60%"></select><input id="deploy-button" type="button" style="width:40%; display: inline;" value="Deploy" /><input id="deploy-newHost" type="button" style="width:40%; display: inline;" value="New Domain" /></div>');
+    var list = $("#deploy-host");
+    list.empty();
+    for(var a=0; a<hostList.length;a++) {
+	list.append('<option value="'+hostList[a]+'" >'+hostList[a]+'</option>');
+    }
+    $("#deploy-newHost").click(function () {
+	var name = prompt("Enter a subhost name\n[name].jsapp.us", ".jsapp.us");
+	name = name.replace(/.jsapp.us$/i, "");
+	if(/[^a-zA-Z0-9\-]/.exec(name))
+	    return alert("Name contains invalid characters");
+	if(hostList.indexOf(name)!=-1) {
+	    $("#deploy-host").val(name);
+	    return;
+	}
+	Ajax.Call({
+	    "action": "newHost",
+	    "name": name
+	}, function (data) {
+	    if(data) {
+		list.append('<option value="'+name+'" >'+name+'</option>');
+	    }else
+		alert("That name is all ready taken");
+	});
+    });
 };
 
 exports.listCommand = function (args, request) {
-    request.done(fileList.join("<br>"));
+    if(fileList.length)
+	request.done(fileList.join("<br>"));
+    else
+	request.done("Added files using the save command");
 };
 
 exports.logoutCommand = function (args, request) {
@@ -243,7 +294,9 @@ exports.loginCommand = function (args,request) {
 		userName=data[0].user;
 		userToken=data[0].token;
 		Ajax.Call('list', function(data) {
-		    fileList = data;
+		    fileList = data[0];
+		    hostList = data[1];
+		    hostList.pop();
 		});
 		Ajax.send();
 		function r () {
@@ -260,6 +313,10 @@ exports.loginCommand = function (args,request) {
 	    }
 	});
     });
+};
+
+exports.docsCommand = function () {
+    window.open("http://wiki.matthewfl.com/jsapp:start");
 };
 
 var Ajax = {

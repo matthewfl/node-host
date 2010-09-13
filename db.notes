@@ -1,0 +1,9 @@
+prefixes:
+	fs_[user]_[file]	For the user file system
+	lsFs_[user]		List of user files
+	db_[user]_[appName]_[var]    application data
+	app_[subHostName]	     for applications under system domain/name
+	owner_[subHostName]=user     for who the owner of the sub app domain is without too much lookup
+	host_[hostName]		     for applications with own host name, points to app_
+	lsOwn_[user]=[subHostName]   List of subdomains that are owned by the user
+	lsHost_[user]=[hostName]     List of domains that are owned by user

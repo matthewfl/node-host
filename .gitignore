@@ -4,3 +4,5 @@ Bespin/build
 *~
 \#*
 *.db
+db.js
+\.*
