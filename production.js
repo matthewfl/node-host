@@ -5,14 +5,14 @@ var config = require('./config');
 
 var boxes={};
 
-var baseHostMatch = new RegExp(config.productionBase.replace(/\./g, "\\.")+"$");
-
 var server = http.createServer(function (req, res) {
     if(boxes[req.headers.host]) {
 	boxes[req.headers.host].server(req,res);
     }else{
-	var hostBase = req.headers.host.replace(baseHostMatch, "");
-	db.get(hostBase != req.headers.host ? ("baseHost_" + hostBase) : ("host_"+req.headers.host), function (code) {
+	var hostBase = req.headers.host.replace(config.productionBase, "");
+	console.log(hostBase);
+	db.get(hostBase != req.headers.host ? ("app_" + hostBase) : ("Domain_"+req.headers.host), function (code) {
+	    console.log(code);
 	    if(!code) {
 		res.writeHead(503, {"Content-type":"text/html"});
 		res.end("Host not found");

@@ -153,7 +153,7 @@ exports.saveCommand = function (args, request) {
 	env.commandLine.setInput('save ');
 	return;
     }
-    var file = ('file' in args) ? args['file'] : loadFile;
+    var file = args['file'] || loadFile;
     if(!file) return alert("No file name given");
     loadValue=env.editor.value;
     loadFile=file;
@@ -227,10 +227,24 @@ exports.deployCommand = function (args, request) {
 	}, function (data) {
 	    if(data) {
 		list.append('<option value="'+name+'" >'+name+'</option>');
+		hostList.push(name);
 	    }else
 		alert("That name is all ready taken");
 	});
+	Ajax.send();
     });
+    $("#deploy-button").click(function () {
+	var name = $("#deploy-host").val();
+	Ajax.Call({
+	    "action": "deploy",
+	    "name": name,
+	    "file": loadFile
+	}, function (data) {
+	    alert(data);
+	});
+	Ajax.send();
+    });
+    
 };
 
 exports.listCommand = function (args, request) {
@@ -259,13 +273,31 @@ exports.logoutCommand = function (args, request) {
 exports.loginCommand = function (args,request) {
     if(userName !== null) return exports.logoutCommand();
     request.done();
-    $.facebox('<div id="login"><form action="/newUser" method="post" type="input">User:<input id="userName" name="userName" type="input" style="color:#000; width:90%;"/><br>Password:<input id="password" name="password" type="password" style="color:#000; width: 90%; "/><br><input value="login" type="button" id="loginButton" style="width:40%; display: inline;" /><input value="new user" type="submit" id="newUserButton" style="width:40%; display:inline;"/></div>');
+    $.facebox('<div id="login"><form action="/newUser" method="post" type="input">User:<input id="userName" name="userName" type="input" style="color:#000; width:90%;"/><br>Password:<input id="password" name="password" type="password" style="color:#000; width: 90%; "/><div id="moreUser" style="display:none;">Password Again:<input id="password2" name="password2" type="password" style="color: #000; width:90%" /><br>Email:<input id="userEmail" name="userEmail" type="input" style="color: #000; width:90%" /></div><br><input value="login" type="button" id="loginButton" style="width:40%; display: inline;" /><input value="new user" type="submit" id="newUserButton" style="width:40%; display:inline;"/></form></div>');
     $("#userName").focus();
     $("#userName,#password").keypress(function (e) {
 	if(e.keyCode == '13') {
 	    e.preventDefault();
 	    $("#loginButton").click();
 	}
+    });
+    $("#newUserButton").click(function () {
+	if($("#moreUser:hidden").show().size()) { 
+	    return false;
+	}
+	if(!$("#password").val()) {
+	    alert("There is no password entered");
+	    return false;
+	}
+	if($("#password").val() != $("#password2").val()) {
+	    $("#password2").val('').focus();
+	    alert("Passwords do not match");
+	    return false;
+	}
+	if(!$("#userEmail").val()) {
+	    return confirm("Email is only used for password reset\nleave it blank?");
+	}
+	return true;
     });
     $("#loginButton").click(function () {
 	$("#login").fadeTo("slow", .33);
@@ -329,6 +361,7 @@ var Ajax = {
 	Ajax.callbacks.push(callback || function () {});
     },
     send: function () {
+	if(!Ajax.buffer.length) return;
 	var send = {"actions":Ajax.buffer, user: userName, token: userToken};
 	var callback=Ajax.callbacks;
 	Ajax.buffer=[];

@@ -35,7 +35,7 @@ var ajaxActions = {
 	async([
 	    [
 		function () { db.get("lsFs_"+user, this); },
-		function () { db.get("lsHost_"+user, this); }
+		function () { db.get("lsOwn_"+user, this); }
 	    ],
 	    function () { back([(this[0] || "").split("*"), (this[1] || "").split("*")]); }
 	]);
@@ -79,7 +79,7 @@ var ajaxActions = {
     },
     newHost: function (data, user, back) {
 	if(!user) return back(false);
-	if(!(/[^a-zA-Z0-9\-]/.exec(data.name)) return back(false);
+	if((/[^a-zA-Z0-9\-]/.exec(data.name))) return back(false);
 	db.get("owner_"+data.name, function (d) {
 	    if(d==user) {
 		return back(true);
@@ -98,30 +98,31 @@ var ajaxActions = {
 		back("you do not own that sub domain");
 		return;
 	    }
-	    var con = http.createClient(config.testPort, 'localhost');
-	    var r = con.request('POST', '/?key='+config.testSKey+'&user='+user, {
-		"host": config.testHost
-	    }, {'Content-Length': data.code.length});
-	    r.on('response', function (response) {
-		var data="";
-		response.on('data', function (d) {
-		    data+=d.toString('ascii',0);
-		    back(d.toString('ascii', 0).replace(/error\n/, ""));
-		});
-		response.on('end', function () {
-		    if(! (/error/.exec(data))) {
-			back("Deploy failed");
-			return;
-		    }
-		    sandbox.build(data.code, user, function (build) {
-			db.set("app_"+data.name, JSON.stringify({user: user, name: data.code, code: build}), function () {
-			    back("Deploy successful");
+	    db.get("fs_"+user+"_"+data.file, function (codeS) {
+		var con = http.createClient(config.testPort, 'localhost');
+		var r = con.request('POST', '/?key='+config.testSKey+'&user='+user, {
+		    "host": config.testHost
+		}, {'Content-Length': codeS.length});
+		r.on('response', function (response) {
+		    var tres="";
+		    response.on('data', function (d) {
+			tres+=d.toString('ascii',0);
+		    });
+		    response.on('end', function () {
+			if((/error/.exec(tres))) {
+			    back("Deploy failed due to error");
+			    return;
+			}
+			sandbox.build(codeS, user, function (build) {
+			    db.set("app_"+data.name, JSON.stringify({user: user, name: data.name, code: build}), function () {
+				back("Deploy successful");
+			    });
 			});
 		    });
 		});
+		r.write(codeS);
+		r.end();
 	    });
-	    r.write(data.code);
-	    r.end();
 	});
     }
 };
@@ -135,12 +136,14 @@ server.post('/ajax', function (req, res, match) {
 	    data+=d.toString('ascii', 0);
 	});
 	req.on('end', function () {
-	    var d = JSON.parse(data);
-	    var ret=[];
-	    var userName=null;
-	    if(d.user && d.token)
-		if(checkUser(d))
-		    userName=d.user;
+	    try {
+		var d = JSON.parse(data);
+		var ret=[];
+		var userName=null;
+		if(d.user && d.token)
+		    if(checkUser(d))
+			userName=d.user;
+	    }catch (e) { return res.end(); }
 	    EndCount++;
 	    for(var i=0;i<d.actions.length;i++) {
 		if(ajaxActions[d.actions[i].action]) {
@@ -174,13 +177,6 @@ server.post('/ajax', function (req, res, match) {
     }
 });
 
-server.get('/restart', function (req, res) {
-    //res.redirect("/#asdsf");
-    res.writeHead(200, {"Content-Type": "text/html"});
-    res.end('<meta http-equiv="refresh" content="1;url=/">');
-    process.exit(0);
-});
-
 server.post('/newUser', function (req, res) {
     try {
     var raw="";
@@ -196,6 +192,7 @@ server.post('/newUser', function (req, res) {
 		return router.staticHandler('./static/newUserName.html')(req,res);
 	    var pass = crypto.createHash('sha1').update(data.password).digest('hex');
 	    db.set("login_"+data.userName, pass);
+	    db.set("email_"+data.userName, data.userEmail);
 	    console.log("new user "+data.userName);
 	    res.redirect( "/#" + (userLogin[data.userName] = Math.random().toString().substring(2)) + "," + data.userName );
 	});
@@ -207,10 +204,15 @@ server.post('/newUser', function (req, res) {
     }
 });
 
-server.get(/\/Bespin(.*)$/, router.staticDirHandler('./Bespin/build', '/'));
-server.get(/\/resources\/(.*)$/, router.staticDirHandler('./Bespin/build', '/'));
+server.get(/\/error/, function (req, res) {
+    res.writeHead(503, {"Content-Type": "text/html"});
+    res.end("There was an error");
+});
 
-server.get('/', router.staticHandler('./static/index.html'));
-server.get(/\/(.*)$/, router.staticDirHandler('./static', '/'));
+server.get(/\/Bespin(.*)$/, router.staticDirHandler('./Bespin/build', '/', false));
+server.get(/\/resources\/(.*)$/, router.staticDirHandler('./Bespin/build', '/', false));
 
-server.listen(8080);
+server.get('/', router.staticHandler('./static/index.html', false));
+server.get(/\/(.*)$/, router.staticDirHandler('./static', '/', false));
+
+server.listen(config.basePort);

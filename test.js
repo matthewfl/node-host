@@ -32,7 +32,7 @@ var server = http.createServer(function (req, res) {
 		    setTimeout(function () {
 			boxes[name] =null;
 		    }, config.testTimeToLive);
-		res.write("http://"+name);
+		res.write("http://"+name /* + ":8000" for testing */);
 		if(boxes[name].error) res.write("\nerror\n");
 		res.end();
 	    });
