@@ -152,7 +152,7 @@ exports.openCommand = function (args, request) {
 
 exports.saveCommand = function (args, request) {
     if(!userToken) return requst.done("Not logedin");
-    if(loadFile == null && (!('file' in args) || args['file']=="")) {
+    if(!loadFile && (!('file' in args) || args['file']=="")) {
 	env.commandLine.setInput('save ');
 	return;
     }
