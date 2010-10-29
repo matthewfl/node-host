@@ -114,8 +114,8 @@ var ajaxActions = {
 			    return;
 			}
 			sandbox.build(codeS, user, function (build) {
-			    db.set("app_"+data.name, JSON.stringify({user: user, name: data.name, code: build}), function () {
-				back("Deploy successful");
+			    db.set("app_"+data.name, JSON.stringify({user: user, name: data.name, code: build, id: Date.now()}), function () {
+				back("Deploy successful\nGive a few minutes for the application to update");
 			    });
 			});
 		    });
@@ -154,7 +154,7 @@ server.post('/ajax', function (req, res, match) {
 			    ret[loc]=d;
 			    EndCount--;
 			    if(!EndCount) {
-				res.write(JSON.stringify(ret));
+				res.write(JSON.stringify({"user": userName, "data": ret}));
 				res.end();
 			    }
 			});
@@ -167,7 +167,7 @@ server.post('/ajax', function (req, res, match) {
 	    }
 	    EndCount--;
 	    if(!EndCount) {
-		res.write(JSON.stringify(ret));
+		res.write(JSON.stringify({"user": userName, "data": ret}));
 		res.end();
 	    }
 	});

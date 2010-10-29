@@ -7,6 +7,7 @@ var boxes={};
 
 var server = http.createServer(function (req, res) {
     if(boxes[req.headers.host]) {
+	boxes[req.headers.host]._last_use = Date.now();
 	boxes[req.headers.host].server(req,res);
     }else{
 	var hostBase = req.headers.host.replace(config.productionBase, "");
@@ -20,10 +21,32 @@ var server = http.createServer(function (req, res) {
 	    }
 	    code = JSON.parse(code);
 	    boxes[req.headers.host] = new sandbox.SandBox(code.code, {test: false, user: code.user, app: code.app});
+	    boxes[req.headers.host]._loaded = Date.now();
+	    boxes[req.headers.host]._last_use = Date.now();
 	    boxes[req.headers.host].server(req, res);
 	});
     }
 });
+
+setTimeout(function () {
+    var time = Date.now();
+    for(var a in boxes) {
+	if(time - boxes[a]._last_use > 300*1000) {
+	    boxes[a] = null;
+	}
+    }
+    for(var a in boxes) {
+	if(time - boxes[a]._loaded > 7*60*1000) {
+	    var hostBase = a.replace(config.productionBase, "");
+	    db.get(hostBase != a ? ("app_" + hostBase) : ("Domain_"+req.headers.host), function (code) {
+		code = JSON.parse(code);
+		boxes[a] = new sandbox.SandBox(code.code, {test: false, user: code.user, app: code.app});
+		boxes[a]._loaded = time;
+		boxes[a]._last_use = time - 60*1000;
+	    });
+	}
+    }
+}, 20000);
 
 server.listen(/^[0-9]*$/.exec(process.argv[2]) ? process.argv[2] : process.argv[2]*1);
 

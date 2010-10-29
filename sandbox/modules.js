@@ -38,6 +38,20 @@ exports.crypto = function (context) {
     return copy(require('crypto'));
 };
 
+exports.util = exports.sys = function (context) {
+    function nothing () {}
+    return {
+	prtin: nothing,
+	puts: nothing,
+	debug: nothing,
+	error: nothing,
+	inspect: nothing,
+	p: nothing,
+	log: nothing,
+	exec: nothing,
+	pump: require('sys').pump
+    };
+};
 
 var db;
 exports.db = exports.database = function (context, config) {
@@ -65,8 +79,8 @@ exports.db = exports.database = function (context, config) {
 		db.remove(baseName+name, back);
 	},
 	has: function (name, back) {
-	    if(config.test) 
-		back(!tmp[name]);
+	    if(config.test)
+		back(!!tmp[name]);
 	    else
 		db.has(baseName+name, back);
 	}

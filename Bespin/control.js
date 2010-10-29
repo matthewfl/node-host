@@ -131,7 +131,6 @@ exports.openCommand = function (args, request) {
 	env.commandLine.setInput('open ');
 	return;
     }
-    console.trace();
     if(loadValue != env.editor.value)
 	if(!confirm(discardChanges)) return;
     loadFile = args['file'];
@@ -259,7 +258,7 @@ exports.logoutCommand = function (args, request) {
 	if(!confirm(discardChanges)) return;
     if(!confirm("Are you sure that you want to logout")) return;
     // this is not needed, but might change and not reload page
-    loadFile=userName=userToken=null;
+    loadFile=userName=userToken=userPass=null;
     env.editor.value=loadValue="Loged out";
     fileList=[];
     
@@ -302,7 +301,7 @@ exports.loginCommand = function (args,request) {
     $("#loginButton").click(function () {
 	$("#login").fadeTo("slow", .33);
 	var user = $("#userName").val();
-	var pass = $("#password").val();
+	var pass = userPass = $("#password").val();
 	$.ajax({
 	    "url": "/ajax",
 	    "type": "POST",
@@ -318,13 +317,13 @@ exports.loginCommand = function (args,request) {
 		]
 	    }),
 	    success: function (data) {
-		if(data[0].ok != true) {
+		if(data.data[0].ok != true) {
 		    $("#login").fadeTo("slow", 1);
 		    alert("login failed");
 		    return;
 		}
-		userName=data[0].user;
-		userToken=data[0].token;
+		userName=data.data[0].user;
+		userToken=data.data[0].token;
 		Ajax.Call('list', function(data) {
 		    fileList = data[0];
 		    hostList = data[1];
@@ -352,6 +351,7 @@ exports.docsCommand = function () {
 };
 
 var Ajax = {
+    docTitle: document.title,
     buffer: [],
     callbacks: [],
     Call: function (data, callback) {
@@ -362,11 +362,12 @@ var Ajax = {
     },
     send: function () {
 	if(!Ajax.buffer.length) return;
-	var send = {"actions":Ajax.buffer, user: userName, token: userToken};
+	document.title = "Loading... "+Ajax.docTitle;
+	var send = {"actions":Ajax.buffer, "user": userName, "token": userToken};
 	var callback=Ajax.callbacks;
 	Ajax.buffer=[];
 	Ajax.callbacks=[];
-	(function (callback) {
+	(function (callback, sent) {
 	    $.ajax({
 		"url": "/ajax",
 		"type": "POST",
@@ -374,10 +375,42 @@ var Ajax = {
 		"dataType": "json",
 		"data": JSON.stringify(send),
 		success: function (data) {
+		    document.title = Ajax.docTitle;
+		    if(userName && data.user != userName) {
+			userToken = null;
+			$.ajax({
+			    "url": "/ajax",
+			    "type": "POST",
+			    "cache": false,
+			    "dataType": "json",
+			    "data": JSON.stringify({
+				"actions": [
+				    {
+					"action": "login",
+					"user": userName,
+					"pass": userPass
+				    }
+				]
+			    }),
+			    success: function (data) {
+				if(!data.data[0].ok) {
+				    alert("The server is having a problem with your login\nYou are loged out");
+				    userName=userPass=userToken=null;
+				    return;
+				}
+				userName = data.data[0].user;
+				userToken = data.data[0].token;
+				Ajax.send();
+			    }
+			});
+			Ajax.buffer = sent.concat(Ajax.buffer);
+			Ajax.callbacks = callback.concat(Ajax.callbacks);
+			return;
+		    }
 		    for(var i=0;i<callback.length;i++)
-			callback[i](data[i]);
+			callback[i](data.data[i]);
 		}
 	    });
-	})(callback);
+	})(callback, send.actions);
     }
 };
