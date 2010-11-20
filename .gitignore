@@ -6,3 +6,4 @@ Bespin/build
 *.db
 db.js
 \.*
+config.js
