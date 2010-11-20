@@ -209,10 +209,10 @@ server.get(/\/error/, function (req, res) {
     res.end("There was an error");
 });
 
-server.get(/\/Bespin(.*)$/, router.staticDirHandler('./Bespin/build', '/', false));
-server.get(/\/resources\/(.*)$/, router.staticDirHandler('./Bespin/build', '/', false));
+server.get(/\/Bespin(.*)$/, router.staticDirHandler('./Bespin/build', '/'));
+server.get(/\/resources\/(.*)$/, router.staticDirHandler('./Bespin/build', '/'));
 
-server.get('/', router.staticHandler('./static/index.html', false));
-server.get(/\/(.*)$/, router.staticDirHandler('./static', '/', false));
+server.get('/', router.staticHandler('./static/index.html'));
+server.get(/\/(.*)$/, router.staticDirHandler('./static', '/'));
 
 server.listen(config.basePort);

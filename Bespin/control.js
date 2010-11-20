@@ -125,6 +125,10 @@ if(location.hash) {
     location.hash="";
 }
 
+function track (event) {
+    _gaq.push(['_trackEvent', 'editor', event]);
+}
+
 exports.openCommand = function (args, request) {
     if(!userToken) return request.done("Not logedin");
     if(!('file' in args)) {
@@ -180,6 +184,7 @@ exports.testCommand = function (args, request) {
 	win.location.href=p;
     });
     Ajax.send();
+    track("test");
 };
 
 exports.newCommand = function (args, request) {
@@ -190,6 +195,7 @@ exports.newCommand = function (args, request) {
     loadFile = null;
 };
 
+var domainLimit=2;
 exports.deployCommand = function (args, request) {
     //var saveFile=false;
     if(!loadFile)
@@ -212,6 +218,7 @@ exports.deployCommand = function (args, request) {
 	list.append('<option value="'+hostList[a]+'" >'+hostList[a]+'</option>');
     }
     $("#deploy-newHost").click(function () {
+	if(0>--domainLimit) return alert("You have reached your hourly limit for sub domains");
 	var name = prompt("Enter a subhost name\n[name].jsapp.us", ".jsapp.us");
 	name = name.replace(/.jsapp.us$/i, "");
 	if(/[^a-zA-Z0-9\-]/.exec(name))
@@ -231,6 +238,7 @@ exports.deployCommand = function (args, request) {
 		alert("That name is all ready taken");
 	});
 	Ajax.send();
+	track("new domain")
     });
     $("#deploy-button").click(function () {
 	var name = $("#deploy-host").val();
@@ -242,6 +250,7 @@ exports.deployCommand = function (args, request) {
 	    alert(data);
 	});
 	Ajax.send();
+	track("deploy");
     });
     
 };
@@ -294,8 +303,9 @@ exports.loginCommand = function (args,request) {
 	    return false;
 	}
 	if(!$("#userEmail").val()) {
-	    return confirm("Email is only used for password reset\nleave it blank?");
+	    if(!confirm("Email is only used for password reset\nleave it blank?")) return;
 	}
+	track("new user");
 	return true;
     });
     $("#loginButton").click(function () {
@@ -336,6 +346,7 @@ exports.loginCommand = function (args,request) {
 		}
 		$(document).bind('afterClose.facebox', r);
 		$(document).trigger('close.facebox');
+		track("login");
 	    },
 	    complete: function (a,b) {
 		if(b == "error") {
@@ -348,6 +359,7 @@ exports.loginCommand = function (args,request) {
 
 exports.docsCommand = function () {
     window.open("http://wiki.matthewfl.com/jsapp:start");
+    track("help");
 };
 
 var Ajax = {
