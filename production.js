@@ -6,6 +6,7 @@ var config = require('./config');
 var boxes={};
 
 var server = http.createServer(function (req, res) {
+    if(req.connection.remoteAddress != "127.0.0.1") {res.writeHead(400, {"Connection":"close"}); return res.end();}
     if(boxes[req.headers.host]) {
 	boxes[req.headers.host]._last_use = Date.now();
 	boxes[req.headers.host].server(req,res);

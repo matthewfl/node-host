@@ -6,6 +6,7 @@ var sandbox = require('./sandbox');
 var boxes = {};
 
 var server = http.createServer(function (req, res) {
+    if(req.connection.remoteAddress != "127.0.0.1") res.end();
     console.log("connect", req.headers.host);
     //res.writeHead(200, {"Content-type": "text/plain"});
     if(req.headers.host == config.testHost) {
