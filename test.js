@@ -47,4 +47,9 @@ var server = http.createServer(function (req, res) {
 	}
     }
 });
+
+setInterval(function () {
+    console.log(config.checkOkCode);
+}, config.sendOkInterval);
+
 server.listen(config.testPort);

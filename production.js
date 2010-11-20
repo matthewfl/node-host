@@ -28,7 +28,7 @@ var server = http.createServer(function (req, res) {
     }
 });
 
-setTimeout(function () {
+setInterval(function () {
     var time = Date.now();
     for(var a in boxes) {
 	if(time - boxes[a]._last_use > 300*1000) {
@@ -47,6 +47,10 @@ setTimeout(function () {
 	}
     }
 }, 20000);
+
+setInterval(function () {
+    console.log(config.checkOkCode);
+}, config.sendOkInterval);
 
 server.listen(/^[0-9]*$/.exec(process.argv[2]) ? process.argv[2] : process.argv[2]*1);
 

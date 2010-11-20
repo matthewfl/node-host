@@ -3,10 +3,12 @@
 exports.basePort=8080;
 
 exports.productionStart=9000;
-exports.productionNumber=1;
+exports.productionNumber=10;
 exports.productionBase=/\.jsapp\.us$/;
 
-exports.checkInterval=5*1000;
+exports.checkInterval=1500;
+exports.sendOkInterval=700;
+exports.checkOkCode = "Random Check Ok Code";
 
 
 exports.testPort=8090;
@@ -21,3 +23,4 @@ exports.errorPage="http://jsapp.us/error";
 exports.testDbPort=8081;
 exports.dbPort='/tmp/tyrant';
 exports.dbHost="";
+

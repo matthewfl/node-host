@@ -6,6 +6,7 @@ db._isMaster();
 
 var proc = [];
 var front;
+var time=Date.now();
 
 
 function instance (name, args) {
@@ -16,33 +17,49 @@ function instance (name, args) {
 }
 instance.prototype.ok = function () {
     // should check the ram and the cpu usage
-    return true;
+    return (time - this.lastOk) < config.checkInterval;
 };
 
 instance.prototype.restart = function () {
-    var tmp = this.Dorestart;
+    console.log("restarted", time - this.lastOk, this.name, this.args);
+    this.lastOk += 1000;
+    var tmp = this.Dorestart, self=this;
     this.Dorestart = false;
+    //this.child.removeListener('exit', this.exited);
     try {
-	this.child.kill('KILL');
+	this.child.kill();
     }catch(e) {}
     this.load();
-    this.Dorestart = tmp;
+    setTimeout(function () { 
+	self.Dorestart = tmp;
+    },50);
 };
 
 instance.prototype.load = function () {
     var self=this;
+    this.lastOk = time + 2000;
     this.child = child.spawn(this.name, this.args);
-    //sys.pump(this.ret.stdout, process.stdout);
-    this.child.stdout.on('data', function (d) { console.log(d.toString("ascii")); });
-    this.child.on('exit', function (code) {
+    this.child.stdout.on('data', function () { self.print.apply(self, arguments); });
+    self.child.on('exit', function () {self.exited.apply(self, arguments);});
+};
+
+instance.prototype.exited = function (code) {
+    if(this.Dorestart == true) {
+	this.restart();
 	console.log("died");
-	if(self.Dorestart == true)
-	    self.restart();
-    });
+    }
+}
+
+instance.prototype.print = function (d) {
+    var s = d.toString("ascii"),b;
+    if(s.indexOf(config.checkOkCode)!=-1) this.lastOk = Date.now();
+    else console.log(this.args.join(" "), s);
 };
 
 instance.prototype.bringDown = function () {
-
+    try {
+	this.child.kill();
+    }catch(e) {}
 };
 
 front = new instance('node', ['front-end.js']); // do not want the front in the kill ring
@@ -56,6 +73,7 @@ for(var n=0;n<config.productionNumber;n++) {
 }
 
 setInterval(function () {
+    time = Date.now();
     for(var i=0;i<proc.length;i++) {
 	if(!proc[i].ok())
 	    proc[i].restart();
