@@ -23,4 +23,4 @@ exports.errorPage="http://jsapp.us/error";
 exports.testDbPort=8081;
 exports.dbPort='/tmp/tyrant';
 exports.dbHost="";
-
+exports.dbSyncTime=10*1000;

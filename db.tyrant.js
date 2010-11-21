@@ -3,7 +3,12 @@ var config = require('./config')
 
 tyrant.connect(config.dbPort, config.dbHost);
 
-exports._isMaster=function (){};
+exports._isMaster=function (){
+    setInterval(function () {
+	tyrant.sync();
+    }, config.dbSyncTime);
+	
+};
 
 exports.get = function (key, callback) {
     if(callback)
