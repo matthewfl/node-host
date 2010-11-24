@@ -87,7 +87,7 @@
 	    "ep": "command",
 	    "name": "newuser",
 	    "description": "Create a new user",
-	    "pointer": "#loginCommand",
+	    "pointer": "#newUserCommand",
 	    "params": []
 	},
 	{
@@ -151,7 +151,7 @@ exports.openCommand = function (args, request) {
 };
 
 exports.saveCommand = function (args, request) {
-    if(!userToken) return requst.done("Not logedin");
+    if(!userToken) return request.done("Not logedin");
     if(!loadFile && (!('file' in args) || args['file']=="")) {
 	env.commandLine.setInput('save ');
 	return;
@@ -198,6 +198,7 @@ exports.newCommand = function (args, request) {
 var domainLimit=2;
 exports.deployCommand = function (args, request) {
     //var saveFile=false;
+    if(!userToken) return request.done("Not logedin");
     if(!loadFile)
 	return alert("The file has no name, you must use the save command first to give it a name");
     if(loadValue != env.editor.value) {
@@ -211,7 +212,7 @@ exports.deployCommand = function (args, request) {
 	}
     }
     // stuff here
-    $.facebox('<div id="deploy"><select id="deploy-host" style="width:60%"></select><input id="deploy-button" type="button" style="width:40%; display: inline;" value="Deploy" /><input id="deploy-newHost" type="button" style="width:40%; display: inline;" value="New Domain" /></div>');
+    $.facebox('<div id="deploy" class="bespin"><select id="deploy-host" style="width:60%"></select><input id="deploy-button" type="button" style="width:40%; display: inline;" value="Deploy" /><input id="deploy-newHost" type="button" style="width:40%; display: inline;" value="New Domain" /></div>');
     var list = $("#deploy-host");
     list.empty();
     for(var a=0; a<hostList.length;a++) {
@@ -256,6 +257,7 @@ exports.deployCommand = function (args, request) {
 };
 
 exports.listCommand = function (args, request) {
+    if(!userToken) return request.done("Not logedin");
     if(fileList.length)
 	request.done(fileList.join("<br>"));
     else
@@ -281,7 +283,7 @@ exports.logoutCommand = function (args, request) {
 exports.loginCommand = function (args,request) {
     if(userName !== null) return exports.logoutCommand();
     request.done();
-    $.facebox('<div id="login"><form action="/newUser" method="post" type="input">User:<input id="userName" name="userName" type="input" style="color:#000; width:90%;"/><br>Password:<input id="password" name="password" type="password" style="color:#000; width: 90%; "/><div id="moreUser" style="display:none;">Password Again:<input id="password2" name="password2" type="password" style="color: #000; width:90%" /><br>Email:<input id="userEmail" name="userEmail" type="input" style="color: #000; width:90%" /></div><br><input value="login" type="button" id="loginButton" style="width:40%; display: inline;" /><input value="new user" type="submit" id="newUserButton" style="width:40%; display:inline;"/></form></div>');
+    $.facebox('<div id="login" class="bespin"><form action="/newUser" method="post" type="input">User:<input id="userName" name="userName" type="input" style="color:#000; width:90%;"/><br>Password:<input id="password" name="password" type="password" style="color:#000; width: 90%; "/><div id="moreUser" style="display:none;">Password Again:<input id="password2" name="password2" type="password" style="color: #000; width:90%" /><br>Email:<input id="userEmail" name="userEmail" type="input" style="color: #000; width:90%" /></div><br><input value="login" type="button" id="loginButton" style="width:40%; display: inline;" /><input value="new user" type="submit" id="newUserButton" style="width:40%; display:inline;"/></form></div>');
     $("#userName").focus();
     $("#userName,#password").keypress(function (e) {
 	if(e.keyCode == '13') {
@@ -334,6 +336,7 @@ exports.loginCommand = function (args,request) {
 		}
 		userName=data.data[0].user;
 		userToken=data.data[0].token;
+		window.sideBar(false);
 		Ajax.Call('list', function(data) {
 		    fileList = data[0];
 		    hostList = data[1];
@@ -356,6 +359,11 @@ exports.loginCommand = function (args,request) {
 	});
     });
 };
+
+exports.newUserCommand = function (args, request) {
+    exports.loginCommand(args, request);
+    $("#newUserButton").click();
+}
 
 exports.docsCommand = function () {
     window.open("http://wiki.matthewfl.com/jsapp:start");

@@ -2,5 +2,6 @@
 	"output_dir": "../build",
 	"plugins": ["control", "embedded", "html","js_syntax", "stylesheet", "command_line", "editing_commands", "facebox"],
 	"search_path": [".."],
-	"include_sample": false
+	"include_sample": false,
+	"jquery": "global"
 }

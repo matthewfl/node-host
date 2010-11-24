@@ -4,41 +4,68 @@
 <style> 
 html {margin: 0;padding: 0;width: 100%;height: 100%;}
 body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
+#editor { margin: 0; padding: 0; width: 65%; height: 100%; overflow: hidden;}
+#entro { margin: 0; padding:0 width:32%; height: 100%; overflow: auto; position: absolute; top: 0px; left: 66% }
 </style>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.4.4/jquery.min.js"></script>
 <script>
   (function () {
-  function check () {
-  var can = document.createElement('canvas');
-  if (typeof can.getContext != "function") return false;
-  var ctx = can.getContext("2d");
-  return !!(ctx.fillText || ctx.mozDrawText)
-  }
-  if(!check())
-  location.href="/old.html";
+      function check () {
+	  var can = document.createElement('canvas');
+	  if (typeof can.getContext != "function") return false;
+	  var ctx = can.getContext("2d");
+	  return !!(ctx.fillText || ctx.mozDrawText)
+      }
+      if(!check()) {
+	  alert("your browsers is not supported")
+	  //location.href="/old.html";
+	  $(function () {
+	      $("#editor").css("width", "0px");
+	  })
+      }
   })();
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-504603-3']);
+  _gaq.push(['_setDomainName', 'jsapp.us']);
+  //_gaq.push(['_trackPageview']);
 </script>
 
 <link href="BespinEmbedded.css" type="text/css" rel="stylesheet"> 
- 
+
+
 <script type="text/javascript" src="BespinEmbedded.js"></script> 
 
-<script type="text/javascript">
-  var _gaq = _gaq || [];
-  _gaq.push(['_setAccount', 'UA-504603-3']);
-  //_gaq.push(['_setDomainName', '.jsapp.us']);
-  _gaq.push(['_trackPageview']);
-
-  (function() {
-    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
-    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
-  })();
-
+<script>
+  var commandLine=null;
+  function sideBar (show) {
+      if(show) {
+	  $("#editor").css("width", "65%");
+	  $("#entro").css("width", "35%");
+      }else{
+	  $("#editor").css("width", "100%");
+	  $("#entro").css("width", "0px");
+      }
+      $("#editor")[0].bespin.dimensionsChanged();
+  }
+  window.onBespinLoad = function () {
+      commandLine = $("#editor")[0].bespin.commandLine.execute;
+      bespin.tiki.require('control');
+  };
+  $(function () {
+      $("a").click(function () {
+	  var c = $(this).attr('cmd');
+	  if(c) {
+	      commandLine(c); // when null this will crash and the link will work
+	      return false;
+	  }
+	  return true;
+      });
+  });
 </script>
-
 </head> 
-<body class="bespin" data-bespinoptions='{ "settings": { "tabstop": 2, "maxConsoleHeight": 150 }, "syntax": "js", "stealFocus": true }'
->/*
+<body>
+<div id="editor" class="bespin"  data-bespinoptions='{ "settings": { "tabstop": 2, "maxConsoleHeight": 150 }, "syntax": "js", "stealFocus": true }'>/*
  * Welcome to JSApp.US
  * ctrl-b to run the current code on the server
  * ctrl-l to login/make a new user
@@ -53,5 +80,36 @@ var http = require('http');
 http.createServer(function (req, res) {
   res.writeHead(200, {'Content-Type': 'text/plain'});
   res.end('Hello World\n');
-}).listen();</body> 
+}).listen();</div>
+<div id="entro">
+<h2>Welcome to JsApp.US</h2>
+<p>JsApp.US is a hosting platform for <a href="http://nodejs.org">node.js</a> applications.  It is setup to be a platform to coddle to quick, weekend hack like projects.</p>
+<p>To get started you can run the test command from the bottom command line or press Control-b.</p>
+<br>
+</p>Commands:</p>
+<table border="0">
+  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#test" cmd="test">test</a></td><td>Ctrl-b</td><td>Run a quick test of the current file</td></tr>
+  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#login_logout" cmd="login">login</a></td><td>Ctrl-l</td><td>Login</td></tr>
+  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#newuser" cmd="newuser">newuser</a></td><td></td><td>create a new user</td></tr>
+  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#new" cmd="new">new</a></td><td>Ctrl-n</td><td>create a blank file</td></tr>
+</table>
+<br>
+Login is required for:
+<table border="0">
+  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#save" cmd="save">save</a></td><td>Ctrl-s</td><td>Save a file to the vitural file system</td></tr>
+  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#open" cmd="open">open</a></td><td>Ctrl-o</td><td>Open a file by name</td></tr>
+  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#list" cmd="ls">list/ls</a></td><td></td><td>List files on vitural file system</td></tr>
+  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#deploy" cmd="deploy">deploy</a></td><td></td><td>Deploy a project to a subdomain for public viewing</td></tr>
+  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#login_logout" cmd="logout">logout</a></td><td>Ctrl-l</td><td></td></tr>
+</table>
+<br><br>
+<a href="#" onclick="sideBar(false);">Hide this sidebar</a>
+</div>
+<script type="text/javascript">
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+</body> 
 </html> 
