@@ -86,3 +86,39 @@ exports.db = exports.database = function (context, config) {
 	}
     };
 };
+
+exports.fs = function (context, config) {
+    db = db || require('../db');
+    var baseName = "fs_"+config.user+"_";
+    function noMod () {
+	throw "The filesystem supports no modifications of the file system from the application";
+    }
+    function noSync () {
+	throw "The file system supports not synchronous calls";
+    }
+    return {
+	unlink: noMod,
+	unlinkSync: noSync,
+	rename: noMod,
+	renameSync: noSync,
+	truncate: noMod,
+	truncateSync: noSync,
+	chmod: noMod,
+	chmodSync: noSync,
+	stat: function () {},
+	lstat: function () {},
+	fstat: function () {},
+	statSync: noSync,
+	lstatSync: noSync,
+	fstatSync: noSync,
+	link: noMod,
+	linkSync: noSync,
+
+	readFile: function(name, encoding, back) {
+	    db.get(baseName+name.replace(/(\.[\/\\]+)*([a-zA-Z0-9\.]+)/, "$2"), function (b) {
+		(typeof encoding == "function" ? encoding : back)(b == null ? "error" : null, b);
+	    });
+	}
+	
+    };
+};
