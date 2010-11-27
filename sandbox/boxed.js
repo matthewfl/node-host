@@ -1,6 +1,6 @@
 var global = this,
 exports={},
-__dirname="/",
+__dirname="./",
 __filename="main.js";
 
 (function () {
