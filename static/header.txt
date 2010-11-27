@@ -1,0 +1,10 @@
+/*
+ * Welcome to JSApp.US
+ * ctrl-b to run the current code on the server
+ * ctrl-l to login/make a new user
+ * ctrl-h for help
+ *
+ * For more command check out the command window at the bottom
+ * commands: test login/logout newuser new save open ls deploy
+ */
+

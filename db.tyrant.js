@@ -38,3 +38,10 @@ exports.setCat = function (key, value, callback) {
     tyrant.putcat(key, value);
     if(callback) process.nextTick(callback);
 };
+
+exports.addInt = function (key, value, callback) {
+    callback = callback || function () {};
+    tyrant.addint(key, value, function (err, dat) {
+	callback(err ? null : dat);
+    });
+};

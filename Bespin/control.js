@@ -92,11 +92,25 @@
 	},
 	{
 	    "ep": "command",
+	    "name": "share",
+	    "description": "Share the current file with other using a short url",
+	    "pointer": "#shareCommand",
+	    "params": []
+	},
+	{
+	    "ep": "command",
 	    "name": "docs",
 	    "description": "Docs for JsApp",
 	    "key": "ctrl_h",
 	    "pointer": "#docsCommand",
 	    "params":[]
+	},
+	{
+	    "ep": "command",
+	    "name": "sidebar",
+	    "description": "Toggle the showing of the sidebar",
+	    "pointer": "#sidebarCommand",
+	    "params": []
 	}
     ]
 });
@@ -119,10 +133,21 @@ var userPass=null;
 var userToken=null;
 
 if(location.hash) {
-    var hash = location.hash.substring(1).split(",");
-    userToken=hash[0];
-    userName=hash[1];
-    location.hash="";
+    switch(location.hash[1]) {
+    case 'u':
+	var hash = location.hash.substring(2).split(",");
+	userToken=hash[0];
+	userName=hash[1];
+	location.hash="";
+	break;
+    case 's':
+	location.href="/s/"+location.hash.substring(2);
+	break;
+    }
+}
+if(location.href.indexOf("/s/")!=-1) {
+    env.editor.value = env.editor.value.replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&");
+    env.commandLine.execute('goto 1');
 }
 
 function track (event) {
@@ -130,7 +155,7 @@ function track (event) {
 }
 
 exports.openCommand = function (args, request) {
-    if(!userToken) return request.done("Not logedin");
+    if(!userToken)  { alert("you need to login for this command"); return request.done("Not logedin"); }
     if(!('file' in args)) {
 	env.commandLine.setInput('open ');
 	return;
@@ -151,7 +176,7 @@ exports.openCommand = function (args, request) {
 };
 
 exports.saveCommand = function (args, request) {
-    if(!userToken) return request.done("Not logedin");
+    if(!userToken)  { alert("you need to login for this command"); return request.done("Not logedin"); }
     if(!loadFile && (!('file' in args) || args['file']=="")) {
 	env.commandLine.setInput('save ');
 	return;
@@ -198,7 +223,7 @@ exports.newCommand = function (args, request) {
 var domainLimit=2;
 exports.deployCommand = function (args, request) {
     //var saveFile=false;
-    if(!userToken) return request.done("Not logedin");
+    if(!userToken)  { alert("you need to login for this command"); return request.done("Not logedin"); }
     if(!loadFile)
 	return alert("The file has no name, you must use the save command first to give it a name");
     if(loadValue != env.editor.value) {
@@ -257,7 +282,7 @@ exports.deployCommand = function (args, request) {
 };
 
 exports.listCommand = function (args, request) {
-    if(!userToken) return request.done("Not logedin");
+    if(!userToken) { alert("you need to login for this command"); return request.done("Not logedin"); }
     if(fileList.length)
 	request.done(fileList.join("<br>"));
     else
@@ -293,6 +318,10 @@ exports.loginCommand = function (args,request) {
     });
     $("#newUserButton").click(function () {
 	if($("#moreUser:hidden").show().size()) { 
+	    return false;
+	}
+	if($("#userName").val() < 3) {
+	    alert("Username is to short");
 	    return false;
 	}
 	if(!$("#password").val()) {
@@ -363,11 +392,45 @@ exports.loginCommand = function (args,request) {
 exports.newUserCommand = function (args, request) {
     exports.loginCommand(args, request);
     $("#newUserButton").click();
-}
+};
+
+exports.shareCommand = function (args, request) {
+    if(!userToken) { alert("you need to login for this command"); return request.done("Not logedin"); }
+    if(!loadFile)
+	return alert("The file has no name, you must use the save command first to give it a name");
+    if(loadValue != env.editor.value) {
+	if(confirm("Would you like to save the file before sharing")) {
+	    loadValue=env.editor.value;
+	    Ajax.Call({
+		"action": "save",
+		"name": loadFile,
+		"val": loadValue
+	    });
+	}
+    }
+    Ajax.Call({
+	"action": "share",
+	"file": loadFile,
+    }, function (b) {
+	if(b.ok) {
+	    request.done('Code shared at: <a href="http://jsapp.us/s/'+b.num+'">http://jsapp.us/s/'+b.num+'</a>');
+	    location.hash="s"+b.num;
+	}else{
+	    request.done("Failed to share code");
+	}
+    });
+    Ajax.send();
+};
+
 
 exports.docsCommand = function () {
-    window.open("http://wiki.matthewfl.com/jsapp:start");
+    //window.open("http://wiki.matthewfl.com/jsapp:start");
+    window.open("https://github.com/matthewfl/node-host/wiki");
     track("help");
+};
+
+exports.sidebarCommand = function () {
+    window.sideBar(null);
 };
 
 var Ajax = {

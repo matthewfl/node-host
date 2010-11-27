@@ -7,3 +7,5 @@ prefixes:
 	host_[hostName]		     for applications with own host name, points to app_
 	lsOwn_[user]=[subHostName]   List of subdomains that are owned by the user
 	lsHost_[user]=[hostName]     List of domains that are owned by user
+	share_#			     The code for shared code
+	share_index		     The value of the last shared code, just use db.addInt to access

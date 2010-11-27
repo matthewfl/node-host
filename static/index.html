@@ -1,6 +1,7 @@
 <!DOCTYPE html> 
 <html><head>
 <title>JSApp.US</title>
+<script>if(location.hash[1] == "s") location.href="/s/"+location.hash.substring(2);</script>
 <style> 
 html {margin: 0;padding: 0;width: 100%;height: 100%;}
 body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
@@ -31,15 +32,15 @@ body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
   _gaq.push(['_trackPageview']);
 </script>
 
-<link href="BespinEmbedded.css" type="text/css" rel="stylesheet"> 
-
-
-<script type="text/javascript" src="BespinEmbedded.js"></script> 
+<link id="bespin_base" href="/"/>
+<link href="/BespinEmbedded.css" type="text/css" rel="stylesheet"> 
+<script type="text/javascript" src="/BespinEmbedded.js"></script> 
 
 <script>
   var commandLine=null;
+  var _sideBarShown = true;
   function sideBar (show) {
-      if(show) {
+      if(_sideBarShown = (show === null ? !_sideBarShown : show)) {
 	  $("#editor").css("width", "65%");
 	  $("#entro").css("width", "35%");
       }else{
@@ -65,22 +66,7 @@ body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
 </script>
 </head> 
 <body>
-<div id="editor" class="bespin"  data-bespinoptions='{ "settings": { "tabstop": 2, "maxConsoleHeight": 150 }, "syntax": "js", "stealFocus": true }'>/*
- * Welcome to JSApp.US
- * ctrl-b to run the current code on the server
- * ctrl-l to login/make a new user
- * ctrl-h for help
- *
- * For more command check out the command window at the bottom
- * commands: test login/logout newuser new save open ls deploy
- */
-
-var http = require('http');
-
-http.createServer(function (req, res) {
-  res.writeHead(200, {'Content-Type': 'text/plain'});
-  res.end('Hello World\n');
-}).listen();</div>
+<div id="editor" class="bespin"  data-bespinoptions='{ "settings": { "tabstop": 2, "maxConsoleHeight": 150 }, "syntax": "js", "stealFocus": true }'>{CODE}</div>
 <div id="entro">
 <h2>Welcome to JsApp.US</h2>
 <p>JsApp.US is a hosting platform for <a href="http://nodejs.org">node.js</a> applications.  It is setup to be a platform to coddle to quick, weekend hack like projects.</p>
@@ -88,26 +74,28 @@ http.createServer(function (req, res) {
 <br>
 Commands:
 <table border="0">
-  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#test" cmd="test">test</a></td><td>Ctrl-b</td><td>Run a quick test of the current file</td></tr>
-  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#login_logout" cmd="login">login</a></td><td>Ctrl-l</td><td>Login</td></tr>
-  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#newuser" cmd="newuser">newuser</a></td><td></td><td>create a new user</td></tr>
-  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#new" cmd="new">new</a></td><td>Ctrl-n</td><td>create a blank file</td></tr>
-  <tr><td><a href="http://wiki.matthewfl.com/jsapp:start" cmd="docs">docs</a></td><td>Ctrl-h</td><td>Open the document wiki</td></tr>
+  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#test" cmd="test">test</a></td><td>Ctrl-b</td><td>Run a quick test of the current file</td></tr>
+  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#login_logout" cmd="login">login</a></td><td>Ctrl-l</td><td>Login</td></tr>
+  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#newuser" cmd="newuser">newuser</a></td><td></td><td>create a new user</td></tr>
+  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#new" cmd="new">new</a></td><td>Ctrl-n</td><td>create a blank file</td></tr>
+  <tr><td><a href="https://github.com/matthewfl/node-host/wiki" cmd="docs">docs</a></td><td>Ctrl-h</td><td>Open the document wiki</td></tr>
+  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#sidebar" cmd="sidebar">sidebar</a></td><td></td><td>Toggle the showing of the sidebar</td></tr>
 </table>
 <br>
 Login is required for:
 <table border="0">
-  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#save" cmd="save">save</a></td><td>Ctrl-s</td><td>Save a file to the vitural file system</td></tr>
-  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#open" cmd="open">open</a></td><td>Ctrl-o</td><td>Open a file by name</td></tr>
-  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#list" cmd="ls">list/ls</a></td><td></td><td>List files on vitural file system</td></tr>
-  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#deploy" cmd="deploy">deploy</a></td><td></td><td>Deploy a project to a subdomain for public viewing</td></tr>
-  <tr><td><a href="http://wiki.matthewfl.com/jsapp:commands#login_logout" cmd="logout">logout</a></td><td>Ctrl-l</td><td></td></tr>
+  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#share" cmd="share">share</a></td><td></td><td>Share a file using a short url</td></tr>
+  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#save" cmd="save">save</a></td><td>Ctrl-s</td><td>Save a file to the vitural file system</td></tr>
+  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#open" cmd="open">open</a></td><td>Ctrl-o</td><td>Open a file by name</td></tr>
+  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#list" cmd="ls">list/ls</a></td><td></td><td>List files on vitural file system</td></tr>
+  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#deploy" cmd="deploy">deploy</a></td><td></td><td>Deploy a project to a subdomain for public viewing</td></tr>
+  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#login_logout" cmd="logout">logout</a></td><td>Ctrl-l</td><td></td></tr>
 </table>
-<br><br>
+<br>
 <a href="#" onclick="sideBar(false);">Hide this sidebar</a>
-<br><br>
-<a href="http://wiki.matthewfl.com/jsapp:modules#db" target="_blank">Database API</a>
-<br><a href="http://code.google.com/p/node-host/issues/entry" target="_blank">Issue tracking</a>
+<br>
+<a href="https://github.com/matthewfl/node-host/wiki/Api" target="_blank">Database API</a>
+<br><a href="https://github.com/matthewfl/node-host/issues" target="_blank">Issue tracking</a>
 </div>
 <script type="text/javascript">
   (function() {

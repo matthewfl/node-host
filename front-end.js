@@ -1,6 +1,7 @@
 var crypto = require('crypto');
 var querystring = require('querystring');
 var http = require('http');
+var fs = require('fs');
 
 var router = require('./lib/node-router');
 var server = router.getServer();
@@ -124,6 +125,16 @@ var ajaxActions = {
 		r.end();
 	    });
 	});
+    },
+    share: function (data, user, back) {
+	if(!user) return back(false);
+	db.get("fs_"+user+"_"+data.file, function (shareCode) {
+	    if(!shareCode) return back({ok: false});
+	    db.addInt('share_index', 1, function (val) {
+		db.set('share_'+val, shareCode);
+		back({ok: true, num: val});
+	    });
+	});
     }
 };
 
@@ -185,7 +196,7 @@ server.post('/newUser', function (req, res) {
     });
     req.on('end', function () {
     (function (data) {
-	if(!data.userName || data.userName=="null")
+	if(!data.userName || data.userName=="null" || data.userName < 3)
 	    res.notFound("User name not valid");
 	db.has("login_"+data.userName, function (has) {
 	    if(has)
@@ -194,7 +205,7 @@ server.post('/newUser', function (req, res) {
 	    db.set("login_"+data.userName, pass);
 	    db.set("email_"+data.userName, data.userEmail);
 	    console.log("new user "+data.userName);
-	    res.redirect( "/#" + (userLogin[data.userName] = Math.random().toString().substring(2)) + "," + data.userName );
+	    res.redirect( "/#u" + (userLogin[data.userName] = Math.random().toString().substring(2)) + "," + data.userName );
 	});
     })(querystring.parse(raw));
     });
@@ -204,6 +215,39 @@ server.post('/newUser', function (req, res) {
     }
 });
 
+var indexFiles = {
+    raw: fs.readFileSync('./static/index.html').toString(),
+    head: fs.readFileSync('./static/header.txt').toString(),
+    indexExample: fs.readFileSync('./static/index_example.js').toString(),
+    shareBasePre: "",
+    shareBasePost: "",
+    shareNotFound: "/////////////////////////////////\n// The file could not be found //\n/////////////////////////////////",
+    index: ""
+};
+indexFiles.index = indexFiles.raw.replace("{CODE}", indexFiles.head + indexFiles.indexExample);
+var shareBaseSplit = indexFiles.raw.replace("{CODE}", "\/*\n * This code was shared using JSApp.US\n *\/\n\n{CODE}").split("{CODE}");
+indexFiles.shareBasePre = shareBaseSplit[0];
+indexFiles.shareBasePost = shareBaseSplit[1];
+indexFiles.shareNotFound += "\n\n\n" + indexFiles.indexExample;
+
+server.get('/', function (req, res) {
+    return indexFiles.index;
+});
+
+server.get(/\/s\/(.*)$/, function (req, res, match) {
+    db.get("share_"+match.replace(/[^0-9]/g, ""), function(code) {
+	res.writeHead(code ? 200:404, {"Content-type":"text/html"});
+	res.write(indexFiles.shareBasePre);
+	if(code)
+	    res.write(code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"))
+	else
+	    res.write(indexFiles.shareNotFound);
+	res.write(indexFiles.shareBasePost);
+	res.end();
+    });
+});
+
+
 server.get(/\/error/, function (req, res) {
     res.writeHead(503, {"Content-Type": "text/html"});
     res.end("There was an error");
@@ -212,7 +256,7 @@ server.get(/\/error/, function (req, res) {
 server.get(/\/Bespin(.*)$/, router.staticDirHandler('./Bespin/build', '/'));
 server.get(/\/resources\/(.*)$/, router.staticDirHandler('./Bespin/build', '/'));
 
-server.get('/', router.staticHandler('./static/index.html'));
+
 server.get(/\/(.*)$/, router.staticDirHandler('./static', '/'));
 
 server.listen(config.basePort);

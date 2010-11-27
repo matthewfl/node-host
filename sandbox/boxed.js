@@ -1,5 +1,8 @@
-var global = this;
-var exports={};
+var global = this,
+exports={},
+__dirname="/",
+__filename="main.js";
+
 (function () {
     // this code runs with the client code
     
@@ -14,7 +17,6 @@ var exports={};
 	if(modules[name]) return modules[name];
 	var code = get_code(name);
 	if(typeof code == "string") {
-	    debug(code)
 	    var fn = eval("(function (exports, __server, __loop_check_, require, __get_code, __process_compile, __process_exit, debug) {\n " + code + " \n return exports;\n})");
 	    modules[name]=(function () { return {} })();
 	    return fn.apply(modules[name], [modules[name], __server, loop_check, global.require, __get_code, __process_compile, __process_exit, debug]);

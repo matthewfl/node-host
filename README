@@ -1,0 +1,11 @@
+This is the code base from http://jsapp.us
+
+
+To get started developing
+Install nginx ( http://nginx.org/ ) and load in the config file from devel/nginx.conf
+run: 
+     ln -s dn.nstore.js db.js
+     ln -s config.sample.js config.js
+     python devel/HostRedirProxy.py 
+     node master.js
+then configure you web browser to proxy through localhost:8000, this will redirect any request to jsapp.us to your local nginx install 
