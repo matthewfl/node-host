@@ -410,7 +410,7 @@ exports.shareCommand = function (args, request) {
     }
     Ajax.Call({
 	"action": "share",
-	"file": loadFile,
+	"file": loadFile
     }, function (b) {
 	if(b.ok) {
 	    request.done('Code shared at: <a href="http://jsapp.us/s/'+b.num+'">http://jsapp.us/s/'+b.num+'</a>');
