@@ -418,6 +418,7 @@ exports.shareCommand = function (args, request) {
 	}else{
 	    request.done("Failed to share code");
 	}
+	track("share");
     });
     Ajax.send();
 };
