@@ -9,3 +9,8 @@ prefixes:
 	lsHost_[user]=[hostName]     List of domains that are owned by user
 	share_#			     The code for shared code
 	share_index		     The value of the last shared code, just use db.addInt to access
+	login_[user]		     The hash of a user's password
+	email_[user]		     The user's password
+	profile_[user]		     The markdown from a user profile
+	setting_[type]_[user]	     General setting from the user
+	setting_name_[user]	     display name of user

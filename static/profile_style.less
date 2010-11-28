@@ -1,0 +1,26 @@
+@import "960";
+
+@basecolor: #CFECEC;
+@middlecolor: #AFC7C7;
+//@popcolor: 
+
+#content{
+    .rounded(20px);
+    background: @basecolor;
+    overflow: hidden;
+}
+
+#userImg {
+    .rounded(15px);
+    width: 200px;
+    height: 200px;
+}
+
+.break { .clear; height: 15px; }
+.breakS { .clear; height: 8px; }
+
+.rounded(@radius: 5px) {
+    -webkit-border-radius: @radius;
+    -moz-border-radius: @radius;
+    border-radius: @radius;
+}

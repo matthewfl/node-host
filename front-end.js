@@ -8,6 +8,7 @@ var server = router.getServer();
 var db = require('./db');
 var config = require('./config');
 var async = require('./lib/async').async;
+var Makrdown = (new (require('./lib/showdown').Showdown.converter)).makeHtml;
 
 var sandbox = require('./sandbox');
 
@@ -222,7 +223,8 @@ var indexFiles = {
     shareBasePre: "",
     shareBasePost: "",
     shareNotFound: "/////////////////////////////////\n// The file could not be found //\n/////////////////////////////////",
-    index: ""
+    index: "",
+    profile: fs.readFileSync('./static/profile.html').toString()
 };
 indexFiles.index = indexFiles.raw.replace("{CODE}", indexFiles.head + indexFiles.indexExample);
 var shareBaseSplit = indexFiles.raw.replace("{CODE}", "\/*\n * This code was shared using JSApp.US\n *\/\n\n{CODE}").split("{CODE}");
@@ -239,12 +241,53 @@ server.get(/\/s\/(.*)$/, function (req, res, match) {
 	res.writeHead(code ? 200:404, {"Content-type":"text/html"});
 	res.write(indexFiles.shareBasePre);
 	if(code)
-	    res.write(code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"))
+	    res.write(code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
 	else
 	    res.write(indexFiles.shareNotFound);
 	res.write(indexFiles.shareBasePost);
 	res.end();
     });
+});
+
+server.get(/\/p\/(.*)$/, function (req, res, match) {
+    if(match.length < 2) return "User was not found";
+    var user = match;
+    async([
+	[
+	    function () { db.get("lsOwn_"+user, this); },
+	    function () { db.get("email_"+user, this); },
+	    function () { db.get("setting_name_"+user, this); },
+	    function () { db.get("profile_"+user, this); }
+	],
+	[
+	    function () { 
+		var i,ret="",l = this[0].split("*");
+		for(i=0;i<l.length-1;++i) {
+		    ret += '<div class="site"><a href="http://'+l[i]+'.jsapp.us" target="_blank">'+l[i]+'</a></div>';
+		}
+		this(ret);
+	    },
+	    function () {
+		this(crypto.createHash('md5').update(this[1] || "").digest('hex'));
+	    },
+	    function () {
+		if(this[2])
+		    this(this[2].replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+		else
+		    this(user.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+	    },
+	    function () {
+		if(this[3])
+		    this(Markdown(this[3].replace(/</g, "&lt;").replace(/>/g, "&gt;")));
+		else
+		    this("You can create your profile using the profile command from the editor");
+	    }
+	],
+	function () {
+	    res.writeHead(200, {"Content-type": "text/html"});
+	    res.write(indexFiles.profile.replace(/\{SUBDOMAIN\}/g, this[0]).replace(/\{EHASH\}/g, this[1])
+	}
+    ]);
 });
 
 

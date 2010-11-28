@@ -4,6 +4,7 @@ This is the code base from http://jsapp.us
 To get started developing
 Install nginx ( http://nginx.org/ ) and load in the config file from devel/nginx.conf
 run: 
+     git submodule update --init --recursive
      ln -s dn.nstore.js db.js
      ln -s config.sample.js config.js
      python devel/HostRedirProxy.py 

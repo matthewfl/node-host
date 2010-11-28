@@ -1,0 +1,49 @@
+<html>
+  <head>
+    <title>{USER}'s profile on JSApp.US</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.4.4/jquery.min.js"></script>
+    <link rel="stylesheet/less" href="profile_style.less" type="text/css">
+    <script src="/less.js"></script>
+    <script>
+      var _gaq = _gaq || [];
+      _gaq.push(['_setAccount', 'UA-504603-3']);
+      _gaq.push(['_setDomainName', 'jsapp.us']);
+      _gaq.push(['_trackPageview']);
+    </script>
+  </head>
+  <body>
+    <div class="break"> </div>
+    <div class="container_12" id="content">
+      <div class="grid_3">
+	<div class="breakS"> </div>
+	<center>
+	  <div style="background-image:url('http://www.gravatar.com/avatar/{EHASH}?d=identicon&s=200');" id="userImg"> </div>
+	  <h3>{USER}</h3>
+	</center>
+	<hr>
+	<div id="domains">
+	  {SUBDOMAIN}
+	</div>
+      </div>
+      <div class="grid_9">
+	<div class="alpha"> </div>
+	<div class="grid_6">
+	  <center><h2>{NAME}</h2></center>
+	</div>
+	<hr>
+	<div class="grid_9">
+	  {MARKDOWN}
+	</div>
+	<div class="omega"> </div>
+      </div>
+    </div>
+    <div class="break"> </div>
+    <script type="text/javascript">
+      (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+      })();
+    </script>
+  </body>
+</html>
