@@ -196,7 +196,7 @@ server.post('/newUser', function (req, res) {
     });
     req.on('end', function () {
     (function (data) {
-	if(!data.userName || data.userName=="null" || data.userName < 3)
+	if(!data.userName || data.userName=="null" || data.userName.length < 2)
 	    res.notFound("User name not valid");
 	db.has("login_"+data.userName, function (has) {
 	    if(has)

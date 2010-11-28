@@ -320,7 +320,7 @@ exports.loginCommand = function (args,request) {
 	if($("#moreUser:hidden").show().size()) { 
 	    return false;
 	}
-	if($("#userName").val() < 3) {
+	if($("#userName").val().length < 2) {
 	    alert("Username is to short");
 	    return false;
 	}
