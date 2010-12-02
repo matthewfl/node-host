@@ -90,7 +90,7 @@ var ajaxActions = {
 		db.setCat("lsOwn_"+user, data.name+"*");
 	    }else
 		return back(false);
-	    
+
 	});
     },
     deploy: function (data, user, back) {
@@ -136,6 +136,25 @@ var ajaxActions = {
 		back({ok: true, num: val});
 	    });
 	});
+    },
+    "profile-data": function (data, user, back) {
+	if(!user) return back(false);
+	async([
+	    [
+		function () { db.get("setting_name_"+user, this); },
+		function () { db.get("email_"+user, this); },
+		function () { db.get("profile_"+user, this); }
+	    ],
+	    function () {
+		back({name: this[0], email: this[1], markdown: this[2] || "This is the content for your profile in markdown"});
+	    }
+	]);
+    },
+    "profile-save": function (data, user, back) {
+	if(!user) back(false);
+	db.set("setting_name_"+user, data.name);
+	db.set("email_"+user, data.email);
+	db.set("profile_"+user, data.markdown);
     }
 };
 
@@ -171,9 +190,9 @@ server.post('/ajax', function (req, res, match) {
 			    }
 			});
 		    })(ajaxActions[d.actions[i].action], d.actions[i], userName, ret.length-1);
-		    
+
 		    //ret.push(ajaxActions[d.actions[i].action](d.actions[i], userName) || {});
-		    
+
 		}else
 		    ret.push({"error":"not found", "name":d.actions[i].action})
 	    }
@@ -191,25 +210,25 @@ server.post('/ajax', function (req, res, match) {
 
 server.post('/newUser', function (req, res) {
     try {
-    var raw="";
-    req.on('data', function (d) {
-	raw+=d.toString('ascii', 0);
-    });
-    req.on('end', function () {
-    (function (data) {
-	if(!data.userName || data.userName=="null" || data.userName.length < 2)
-	    res.notFound("User name not valid");
-	db.has("login_"+data.userName, function (has) {
-	    if(has)
-		return router.staticHandler('./static/newUserName.html')(req,res);
-	    var pass = crypto.createHash('sha1').update(data.password).digest('hex');
-	    db.set("login_"+data.userName, pass);
-	    db.set("email_"+data.userName, data.userEmail);
-	    console.log("new user "+data.userName);
-	    res.redirect( "/#u" + (userLogin[data.userName] = Math.random().toString().substring(2)) + "," + data.userName );
+	var raw="";
+	req.on('data', function (d) {
+	    raw+=d.toString('ascii', 0);
 	});
-    })(querystring.parse(raw));
-    });
+	req.on('end', function () {
+	    (function (data) {
+		if(!data.userName || data.userName=="null" || data.userName.length < 2)
+		    res.notFound("User name not valid");
+		db.has("login_"+data.userName, function (has) {
+		    if(has)
+			return router.staticHandler('./static/newUserName.html')(req,res);
+		    var pass = crypto.createHash('sha1').update(data.password).digest('hex');
+		    db.set("login_"+data.userName, pass);
+		    db.set("email_"+data.userName, data.userEmail);
+		    console.log("new user "+data.userName);
+		    res.redirect( "/#u" + (userLogin[data.userName] = Math.random().toString().substring(2)) + "," + data.userName );
+		});
+	    })(querystring.parse(raw));
+	});
     } catch (e) {
 	console.error(e);
 	res.notFound("there was an error");
@@ -252,42 +271,52 @@ server.get(/\/s\/(.*)$/, function (req, res, match) {
 server.get(/\/p\/(.*)$/, function (req, res, match) {
     if(match.length < 2) return "User was not found";
     var user = match;
-    async([
-	[
-	    function () { db.get("lsOwn_"+user, this); },
-	    function () { db.get("email_"+user, this); },
-	    function () { db.get("setting_name_"+user, this); },
-	    function () { db.get("profile_"+user, this); }
-	],
-	[
-	    function () { 
-		var i,ret="",l = this[0].split("*");
-		for(i=0;i<l.length-1;++i) {
-		    ret += '<div class="site"><a href="http://'+l[i]+'.jsapp.us" target="_blank">'+l[i]+'</a></div>';
+    db.get("email_"+user, function (userEmail) {
+	// This is to check that there is a user before a lot of database hits
+	if(userEmail !== null) {
+	    async([
+		[
+		    function () { db.get("lsOwn_"+user, this); },
+		    function () { db.get("setting_name_"+user, this); },
+		    function () { db.get("profile_"+user, this); }
+		],
+		[
+		    function () {
+			if(!this[0]) return this("");
+			var i,ret="",l = this[0].split("*");
+			for(i=0;i<l.length-1;++i) {
+			    ret += '<div class="site"><a href="http://'+l[i]+'.jsapp.us" target="_blank">'+l[i]+'</a></div>';
+			}
+			this(ret);
+		    },
+		    function () {
+			this(crypto.createHash('md5').update((userEmail || "").toLowerCase()).digest('hex'));
+		    },
+		    function () {
+			if(this[1])
+			    this(this[1].replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+			else
+			    this(user.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+		    },
+		    function () {
+			if(this[2])
+			    this(Markdown(this[2].replace(/</g, "&lt;").replace(/>/g, "&gt;")));
+			else
+			    this("You can create your profile using the profile command from the editor");
+		    }
+		],
+		function () {
+		    res.writeHead(200, {"Content-type": "text/html"});
+		    res.write(indexFiles.profile.replace(/\{SUBDOMAIN\}/g, this[0]).replace(/\{EHASH\}/g, this[1]).replace(/\{USER\}/g, user.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")).replace(/\{NAME\}/g, this[2]).replace(/\{MARKDOWN\}/g, this[3]));
+		    res.end();
 		}
-		this(ret);
-	    },
-	    function () {
-		this(crypto.createHash('md5').update(this[1] || "").digest('hex'));
-	    },
-	    function () {
-		if(this[2])
-		    this(this[2].replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
-		else
-		    this(user.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
-	    },
-	    function () {
-		if(this[3])
-		    this(Markdown(this[3].replace(/</g, "&lt;").replace(/>/g, "&gt;")));
-		else
-		    this("You can create your profile using the profile command from the editor");
-	    }
-	],
-	function () {
-	    res.writeHead(200, {"Content-type": "text/html"});
-	    res.write(indexFiles.profile.replace(/\{SUBDOMAIN\}/g, this[0]).replace(/\{EHASH\}/g, this[1])
+	    ]);
+	}else{
+	    res.writeHead(404, {"Content-type": "text/html"});
+	    res.write("The user was not found");
+	    res.end();
 	}
-    ]);
+    });
 });
 
 

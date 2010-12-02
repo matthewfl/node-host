@@ -1,7 +1,7 @@
 "define metadata";
 ({
     "objects": ["commandLine", "editor"],
-    "description": "the interface for working with Node-host",
+    "description": "the interface for Node-host",
     "provides": [
 	{
 	    "ep": "command",
@@ -110,6 +110,13 @@
 	    "name": "sidebar",
 	    "description": "Toggle the showing of the sidebar",
 	    "pointer": "#sidebarCommand",
+	    "params": []
+	},
+	{
+	    "ep": "command",
+	    "name": "profile",
+	    "description": "Change user, profile and sharing settings",
+	    "pointer": "#profileCommand",
 	    "params": []
 	}
     ]
@@ -309,7 +316,7 @@ exports.loginCommand = function (args,request) {
     if(userName !== null) return exports.logoutCommand();
     request.done();
     $.facebox('<div id="login" class="bespin"><form action="/newUser" method="post" type="input">User:<input id="userName" name="userName" type="input" style="color:#000; width:90%;"/><br>Password:<input id="password" name="password" type="password" style="color:#000; width: 90%; "/><div id="moreUser" style="display:none;">Password Again:<input id="password2" name="password2" type="password" style="color: #000; width:90%" /><br>Email:<input id="userEmail" name="userEmail" type="input" style="color: #000; width:90%" /></div><br><input value="login" type="button" id="loginButton" style="width:40%; display: inline;" /><input value="new user" type="submit" id="newUserButton" style="width:40%; display:inline;"/></form></div>');
-    $("#userName").focus();
+    setTimeout('$("#userName").focus();', 30);
     $("#userName,#password").keypress(function (e) {
 	if(e.keyCode == '13') {
 	    e.preventDefault();
@@ -378,6 +385,7 @@ exports.loginCommand = function (args,request) {
 		}
 		$(document).bind('afterClose.facebox', r);
 		$(document).trigger('close.facebox');
+		env.editor.focus = true;
 		track("login");
 	    },
 	    complete: function (a,b) {
@@ -387,6 +395,30 @@ exports.loginCommand = function (args,request) {
 	    }
 	});
     });
+};
+
+exports.profileCommand = function (args, request) {
+    if(!userToken) { alert("you need to login for this command"); return request.done("Not logedin"); }
+    $.facebox('<div id="profile" class="bespin">Loading...</div>');
+    Ajax.Call("profile-data", function (data) {
+	$("#profile").html('Name: <input id="Pname" type="input" style="width: 90%; color:#000;"><hr>Email:<input id="Pemail" type="input" style="width: 90%; color: #000;"><hr>Profile: (<a href="http://jsapp.us/p/'+userName+'" target="_blank">view profile</a>)<br><textarea id="Pprofile" rows="12" style="color: #000; width: 98%;"></textarea><div style="width: 30%;"> </div><input type="button" value="save" id="profileSave" style="width: 95%; display: inline;">');
+	
+	$("#Pname").val(data.name || userName);
+	$("#Pemail").val(data.email);
+	$("#Pprofile").val(data.markdown);
+	$("#profileSave").click(function () {
+	    Ajax.Call({
+		"action": "profile-save",
+		"name": $("#Pname").val(),
+		"email": $("#Pemail").val(),
+		"markdown": $("#Pprofile").val()
+	    }, function () {
+		alert("profile saved");
+	    });
+	    Ajax.send();
+	});
+    });
+    Ajax.send();
 };
 
 exports.newUserCommand = function (args, request) {
@@ -433,6 +465,8 @@ exports.docsCommand = function () {
 exports.sidebarCommand = function () {
     window.sideBar(null);
 };
+
+
 
 var Ajax = {
     docTitle: document.title,
