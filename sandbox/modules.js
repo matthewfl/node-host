@@ -58,6 +58,7 @@ exports.db = exports.database = function (context, config) {
     db = db || require('../db');
     var baseName = "db_"+config.user+"_"+config.name+"_";
     var tmp={};
+    console.log(config);
     return {
 	get: function (name, back) {
 	    if(config.test && tmp[name]) back(tmp[name]);
@@ -94,7 +95,7 @@ exports.fs = function (context, config) {
 	throw "The filesystem supports no modifications of the file system from the application";
     }
     function noSync () {
-	throw "The file system supports not synchronous calls";
+	throw "The file system does not supports synchronous calls";
     }
     return {
 	unlink: noMod,

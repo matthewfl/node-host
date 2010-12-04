@@ -20,9 +20,10 @@ __filename="main.js";
 	    var fn = eval("(function (exports, __server, __loop_check_, require, __get_code, __process_compile, __process_exit, debug) {\n " + code + " \n return exports;\n})");
 	    modules[name]=(function () { return {} })();
 	    return fn.apply(modules[name], [modules[name], __server, loop_check, global.require, __get_code, __process_compile, __process_exit, debug]);
-	    //if(modules[name].fail) throw name + " is not to be required in";
 	    return modules[name];
-	}else {
+	}else if(typeof code == "undefined") {
+	    throw "module "+name+" was not found";
+	}else{
 	    return modules[name] = code;
 	}
     };

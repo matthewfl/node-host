@@ -6,7 +6,7 @@ exports.build = function (code, user, back) {
     var ret={};
     var need={};
     ret._=jsmin("", code, 1);
-    code.replace(/require\s*?\((.*)\)/g, function (r, v) {
+    code.replace(/require\s*?\((.*?)\)/g, function (r, v) {
 	try {
 	    console.log(v);
 	    need[v.replace(/\"(.*)\"|\'(.*)\'/, function (r) { return r.substring(1,r.length-1); })]=true;
@@ -22,11 +22,11 @@ exports.build = function (code, user, back) {
 	    count++;
 	    (function (name) {
 		db.get("fs_"+user+"_"+name.substring(2), function (code) {
-		    ret[name] = code || "throw 'not found';";
+		    ret[name] = code ? jsmin("",code,1) : "throw 'not found';";
 		    if(!--count) back(ret);
 		});
 	    })(name);
-	}else if(modules[name]) {}
+	}else if(typeof modules[name] != "undefined") {}
 	else if(name.indexOf('/')) {
 	    // will be used latter
 	}else
