@@ -59,6 +59,7 @@ exports.db = exports.database = function (context, config) {
     var baseName = "db_"+config.user+"_"+config.name+"_";
     var tmp={};
     console.log(config);
+    console.log(baseName)
     return {
 	get: function (name, back) {
 	    if(config.test && tmp[name]) back(tmp[name]);
@@ -70,7 +71,7 @@ exports.db = exports.database = function (context, config) {
 		tmp[name]= value+"";
 		process.nextTick(back);
 	    }else
-		db.set(baseName+name, value, back);
+	    db.set(baseName+name, value+"", back);
 	},
 	remove: function (name, back) {
 	    if(config.test) {

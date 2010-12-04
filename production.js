@@ -21,7 +21,7 @@ var server = http.createServer(function (req, res) {
 		return;
 	    }
 	    code = JSON.parse(code);
-	    boxes[req.headers.host] = new sandbox.SandBox(code.code, {test: false, user: code.user, app: code.app});
+	    boxes[req.headers.host] = new sandbox.SandBox(code.code, {test: false, user: code.user, name: code.name});
 	    boxes[req.headers.host]._loaded = Date.now();
 	    boxes[req.headers.host]._last_use = Date.now();
 	    boxes[req.headers.host].server(req, res);
