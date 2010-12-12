@@ -2,7 +2,7 @@ var db = require('../db');
 var jsmin = require('../lib/jsmin').jsmin;
 var modules = require('./modules');
 
-function builder (user, code, back) {
+function builder (code, user, back) {
     this.back = back;
     this.user = user;
     this.need = {};
@@ -15,46 +15,64 @@ function builder (user, code, back) {
 }
 
 builder.prototype.require = function (code) {
+    var self = this;
+    console.log('require call');
     code.replace(/require\s*?\((.*?)\)/g, function (r, v) {
 	try {
 	    console.log(v);
 	    var name = v.replace(/\"(.*)\"|\'(.*)\'/, function (r) { return r.substring(1,r.length-1); });
-	    if(typeof this.need[name] != "undefined") {
-		this.need[name] = false;
-		this.searcher(name);
+	    if(!self.need[name]) {
+		self.need[name] = true;
+		self.searcher(name);
 	    }
 	}catch(e) {
-	    throw "Require needs to be static";
+	    // no good way to get this back out
+	    //throw "Require needs to be static";
 	}
 	return r;
     });
 };
 
 builder.prototype.searcher = function (name) {
+    console.log('searcher '+name);
     if(name.indexOf("./") == 0) {
 	this.counter++;
 	(function (name,self) {
-	    db.get("fs_"+user+"_"+name.substring(2), function (code) {
+	    db.get("fs_"+self.user+"_"+name.substring(2), function (code) {
+		if(code) self.require(code);
 		self.code[name] = code ? jsmin("",code,1) : "throw '"+name+" not found';";
 		self.count();
 	    });
 	})(name, this);
     }else if(typeof modules[name] != "undefined") {}
     else if(name.indexOf('/') != -1) {
+	counter++;
 	var user = a.substring(0,a.indexOf('/'));
 	var file = a.substring(a.indexOf('/')+1);
 	if(typeof this.pub[user] != "undefined") {
 	    if(this.pub[user].indexOf(file) != -1) {
-		
+		(function (name, self) {
+		    db.get("fs_"+user+"_"+file, function (code) {
+			if(code) self.require(code);
+			self.code[name] = code ? jsmin("",code,1) : "throw '"+name+" not found';";
+			self.count();
+		    });
+		})(name, self);
 	    }else{
-		this.error
+		this.code[name] = 'throw "external user module '+name+' was not found";';
 	    }
 	}else{
-	    (function (user, self) {
+	    (function (user, self, name) {
 		db.get("lsPublic_"+user, function (data) {
-		    self.pub[user] = data;
+		    if(!data) {
+			self.code[name] = 'throw "external user module '+name+' was not found";';
+			self.count();
+		    }else{
+			self.pub[user] = data;
+			self.searcher(name);
+		    }
 		});
-	    })(user, this);
+	    })(user, this, name);
 	}
     }else
 	this.code[name] = 'throw "Module '+name+' not found";';
@@ -64,6 +82,13 @@ builder.prototype.count = function () {
     if(!--this.counter)
 	this.back(this.code);
 };
+
+exports.build = function (code, user, back) {
+    var b = new builder(code, user, back);
+};
+
+
+/*
 
 exports.build = function (code, user, back) {
     var ret={};
@@ -97,3 +122,5 @@ exports.build = function (code, user, back) {
     }
     if(!--count) back(ret);
 };
+
+*/
