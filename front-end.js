@@ -8,7 +8,7 @@ var server = router.getServer();
 var db = require('./db');
 var config = require('./config');
 var async = require('./lib/async').async;
-var Makrdown = (new (require('./lib/showdown').Showdown.converter)).makeHtml;
+var Markdown = (new (require('./lib/showdown').Showdown.converter)).makeHtml;
 
 var sandbox = require('./sandbox');
 
@@ -37,9 +37,10 @@ var ajaxActions = {
 	async([
 	    [
 		function () { db.get("lsFs_"+user, this); },
-		function () { db.get("lsOwn_"+user, this); }
+		function () { db.get("lsOwn_"+user, this); },
+		function () { db.get("lsPublic_"+user, this); }
 	    ],
-	    function () { back([(this[0] || "").split("*"), (this[1] || "").split("*")]); }
+	    function () { back([(this[0] || "").split("*"), (this[1] || "").split("*"), (this[2] || "").split("*")]); }
 	]);
     },
     save: function (data, user, back) {
@@ -155,6 +156,7 @@ var ajaxActions = {
 	db.set("setting_name_"+user, data.name);
 	db.set("email_"+user, data.email);
 	db.set("profile_"+user, data.markdown);
+	back(true);
     }
 };
 

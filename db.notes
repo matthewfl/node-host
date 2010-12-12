@@ -14,3 +14,4 @@ prefixes:
 	profile_[user]		     The markdown from a user profile
 	setting_[type]_[user]	     General setting from the user
 	setting_name_[user]	     display name of user
+	lsPublic_[user]		     List of files that the user has shared

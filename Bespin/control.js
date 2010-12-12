@@ -118,6 +118,13 @@
 	    "description": "Change user, profile and sharing settings",
 	    "pointer": "#profileCommand",
 	    "params": []
+	},
+	{
+	    "ep": "command",
+	    "name": "reload_check",
+	    "pointer":"#reloadCheck",
+	    "params":[],
+	    "key": "ctrl_r"
 	}
     ]
 });
@@ -134,6 +141,7 @@ var loadFile="";
 var loadValue = env.editor.value;
 var fileList=[];
 var hostList=[];
+var publicList=[];
 
 var userName=null;
 var userPass=null;
@@ -376,6 +384,7 @@ exports.loginCommand = function (args,request) {
 		Ajax.Call('list', function(data) {
 		    fileList = data[0];
 		    hostList = data[1];
+		    publicList = data[2];
 		    hostList.pop();
 		});
 		Ajax.send();
@@ -401,7 +410,7 @@ exports.profileCommand = function (args, request) {
     if(!userToken) { alert("you need to login for this command"); return request.done("Not logedin"); }
     $.facebox('<div id="profile" class="bespin">Loading...</div>');
     Ajax.Call("profile-data", function (data) {
-	$("#profile").html('Name: <input id="Pname" type="input" style="width: 90%; color:#000;"><hr>Email:<input id="Pemail" type="input" style="width: 90%; color: #000;"><hr>Profile: (<a href="http://jsapp.us/p/'+userName+'" target="_blank">view profile</a>)<br><textarea id="Pprofile" rows="12" style="color: #000; width: 98%;"></textarea><div style="width: 30%;"> </div><input type="button" value="save" id="profileSave" style="width: 95%; display: inline;">');
+	$("#profile").html('Display name: <input id="Pname" type="input" style="width: 90%; color:#000;"><hr>Email:<input id="Pemail" type="input" style="width: 90%; color: #000;"><hr>Profile: (<a href="http://jsapp.us/p/'+userName+'" target="_blank">view profile</a>)<br><textarea id="Pprofile" rows="12" style="color: #000; width: 98%;"></textarea><div style="width: 30%;"> </div><input type="button" value="save" id="profileSave" style="width: 95%; display: inline;">');
 	
 	$("#Pname").val(data.name || userName);
 	$("#Pemail").val(data.email);
@@ -412,8 +421,9 @@ exports.profileCommand = function (args, request) {
 		"name": $("#Pname").val(),
 		"email": $("#Pemail").val(),
 		"markdown": $("#Pprofile").val()
-	    }, function () {
-		alert("profile saved");
+	    }, function (d) {
+		if(d)
+		    alert("profile saved");
 	    });
 	    Ajax.send();
 	});
@@ -445,7 +455,7 @@ exports.shareCommand = function (args, request) {
 	"file": loadFile
     }, function (b) {
 	if(b.ok) {
-	    request.done('Code shared at: <a href="http://jsapp.us/s/'+b.num+'">http://jsapp.us/s/'+b.num+'</a>');
+	    request.done('Code shared at: <a href="http://jsapp.us/s/'+b.num+'" target="_blank">http://jsapp.us/s/'+b.num+'</a>');
 	    location.hash="s"+b.num;
 	}else{
 	    request.done("Failed to share code");
@@ -464,6 +474,11 @@ exports.docsCommand = function () {
 
 exports.sidebarCommand = function () {
     window.sideBar(null);
+};
+
+exports.reloadCheck = function () {
+    if(confirm("Are you sure that you want to reload the page\nDoing so will log you out"))
+	location.reload();
 };
 
 
