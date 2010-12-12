@@ -53,15 +53,13 @@ body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
       commandLine = $("#editor")[0].bespin.commandLine.execute;
       bespin.tiki.require('control');
   };
-  $(function () {
-      $("a").click(function () {
-	  var c = $(this).attr('cmd');
-	  if(c) {
-	      commandLine(c); // when null this will crash and the link will work
-	      return false;
-	  }
-	  return true;
-      });
+  $("a").live('click', function () {
+      var c = $(this).attr('cmd');
+      if(c) {
+	  commandLine(c); // when null this will crash and the link will work
+	  return false;
+      }
+      return true;
   });
 </script>
 </head> 

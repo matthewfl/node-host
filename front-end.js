@@ -152,11 +152,31 @@ var ajaxActions = {
 	]);
     },
     "profile-save": function (data, user, back) {
-	if(!user) back(false);
+	if(!user) return back(false);
 	db.set("setting_name_"+user, data.name);
 	db.set("email_"+user, data.email);
 	db.set("profile_"+user, data.markdown);
 	back(true);
+    },
+    "public-save": function (data, user, back) {
+	if(!user) return back(false);
+	db.set("lsPublic_"+user, data.pub.join("*"));
+	back(true);
+    },
+    "delete": function (data, user, back) {
+	if(!user) return back(false)
+	db.get("lsFs_"+user, function (ls) {
+	    ls = ls.split("*");
+	    if(ls.indexOf(data.name)==-1) return back(false);
+	    ls.splice(ls.indexOf(data.name), 1);
+	    db.set("lsFs_"+user, ls.join("*"));
+	    db.remove("fs_"+user+"_"+data.name, function () {
+		back(true);
+	    });
+	});
+    },
+    rename: function (data, user, back) {
+	back(456);
     }
 };
 

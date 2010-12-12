@@ -121,6 +121,75 @@
 	},
 	{
 	    "ep": "command",
+	    "name": "files",
+	    "description": "Mangage files",
+	    "pointer": "#filesCommand",
+	    "params": []
+	},
+	{
+	    "ep": "command",
+	    "name": "rm",
+	    "pointer": "#deleteCommand",
+	    "description": "Delete a file",
+	    "params": [
+		{
+		    "name": "file",
+		    "type": "text",
+		    "description": "file name to delete"
+		}
+	    ]
+	},
+	{
+	    "ep": "command",
+	    "name": "delete",
+	    "pointer": "#deleteCommand",
+	    "description": "Delete a file",
+	    "params": [
+		{
+		    "name": "file",
+		    "type": "text",
+		    "description": "file name to delete"
+		}
+	    ]
+	},
+	{
+	    "ep": "command",
+	    "name": "mv",
+	    "pointer": "#renameCommand",
+	    "description": "Rename a file",
+	    "params": [
+		{
+		    "name": "file",
+		    "type": "text",
+		    "description": "current file name"
+		},
+		{
+		    "name": "nfile",
+		    "type": "text",
+		    "description": "new file name"
+		}
+	    ]
+	},
+	{
+	    "ep": "command",
+	    "name": "rename",
+	    "pointer": "#renameCommand",
+	    "description": "Rename a file",
+	    "params": [
+		{
+		    "name": "file",
+		    "type": "text",
+		    "description": "current file name"
+		},
+		{
+		    "name": "nfile",
+		    "type": "text",
+		    "description": "new file name"
+		}
+	    ]
+	},
+	{
+	    "ep": "command",
 	    "name": "reload_check",
 	    "pointer":"#reloadCheck",
 	    "params":[],
@@ -410,7 +479,7 @@ exports.profileCommand = function (args, request) {
     if(!userToken) { alert("you need to login for this command"); return request.done("Not logedin"); }
     $.facebox('<div id="profile" class="bespin">Loading...</div>');
     Ajax.Call("profile-data", function (data) {
-	$("#profile").html('Display name: <input id="Pname" type="input" style="width: 90%; color:#000;"><hr>Email:<input id="Pemail" type="input" style="width: 90%; color: #000;"><hr>Profile: (<a href="http://jsapp.us/p/'+userName+'" target="_blank">view profile</a>)<br><textarea id="Pprofile" rows="12" style="color: #000; width: 98%;"></textarea><div style="width: 30%;"> </div><input type="button" value="save" id="profileSave" style="width: 95%; display: inline;">');
+	$("#profile").html('Display name: <input id="Pname" type="input" style="width: 90%; color:#000;"><hr>Email:<input id="Pemail" type="input" style="width: 90%; color: #000;"><hr>Profile: (<a href="/p/'+userName+'" target="_blank">view profile</a>)<br><textarea id="Pprofile" rows="12" style="color: #000; width: 98%;"></textarea><div style="width: 30%;"> </div><input type="button" value="save" id="profileSave" style="width: 95%; display: inline;">');
 	
 	$("#Pname").val(data.name || userName);
 	$("#Pemail").val(data.email);
@@ -426,9 +495,102 @@ exports.profileCommand = function (args, request) {
 		    alert("profile saved");
 	    });
 	    Ajax.send();
+	    track("profile-save");
 	});
     });
     Ajax.send();
+};
+
+exports.filesCommand = function (args, request) {
+    if(!userToken) { alert("you need to login for this command"); return request.done("Not logedin"); }
+    $.facebox('<div id="files" class="bespin" style="overflow: auto;"><div id="filesList"></div></div>');
+    function generate () {
+	var html="<table boarder='1'><tr><td><div style='width: 50%'>Name</div></td><td><div style='width:75px'>Public</div></td><td><div style='width: 75px;'>Delete</div></td><td><div style='width:75px;'>Rename</div></td></tr>";
+	for(var a=0;a<fileList.length;a++){
+	    html+='<tr><td>'+fileList[a].replace(/\</g, "&lt;").replace(/\>/g, "&gt;")+'</td><td><input style="width: 30px;" class="publicCheck" type="checkbox" class="publicCheck" value="'+fileList[a].replace(/\"\<\>/g, "")+'"></td><td><a href="#_Delete" class="fileDelete" file="'+fileList[a].replace(/\"\<\>/g, "")+'">Delete</a></td><td><a href="#_Rename" class="fileRename" file="'+fileList[a].replace(/\"\<\>/g, "")+'">Rename</a></td></tr>';
+	}
+	html+="</table>";
+	$("#filesList").html(html);
+	for(var a=0;a<publicList.length;a++) {
+	    $("input.publicCheck[value="+publicList[a].replace(/\"\<\>/g, "")+"]").attr('checked', true);
+	}
+	$(".publicCheck").click(function () {
+	    var list=[];
+	    // just re caculate it all and send it to the server
+	    $(".publicCheck:checked").each(function () { list.push($(this).attr('value')); });
+	    Ajax.Call({
+		"action": "public-save",
+		"pub": list
+	    });
+	    Ajax.send();
+	    publicList = list;
+	});
+	$(".fileDelete").click(function () {
+	    var name = $(this).attr('file');
+	    if(confirm("Are you sure that you want to delete "+name)) {
+		Ajax.Call({
+		    "action": "delete",
+		    "name": name
+		});
+		Ajax.send();
+		fileList.splice(fileList.indexOf(name),1);
+		if(publicList.indexOf(name)!=-1)
+		    publicList.splice(publicList.indexOf(name),1);
+		generate();
+	    }
+	    return false;
+	});
+	$(".fileRename").click(function () {
+	    var from = $(this).attr('file');
+	    var to = prompt("Entere a new file name", from);
+	    if(to) {
+		Ajax.Call({
+		    "action": "rename",
+		    "from": from,
+		    "to": to
+		});
+		Ajax.send();
+		fileList[fileList.indexOf(from)]=to;
+		if(publicList.indexOf(from)!=-1)
+		    publicList[publicList.indexOf(from)]=to;
+		generate();
+	    }
+	    return false;
+	});
+    }
+    generate();
+};
+
+exports.deleteCommand = function (args, request) {
+    if(!userToken)  { alert("you need to login for this command"); return request.done("Not logedin"); }
+    if(!('file' in args) || args['file']=="") {
+	env.commandLine.setInput('rm ');
+	return;
+    }
+    var name = args['file'];
+    if(fileList.indexOf(name)!=-1) {
+	Ajax.Call({
+	    "action": "delete",
+	    "name": name,
+	}, function (d) {
+	    if(d)
+		request.done("File deleted");
+	});
+	Ajax.send();
+	fileList.splice(fileList.indexOf(name),1);
+	if(publicList.indexOf(name)!=-1)
+	    publicList.splice(publicList.indexOf(name),1);
+    }else
+	request.done("File not found");
+};
+
+exports.renameCommand = function (args, request) {
+    if(!userToken)  { alert("you need to login for this command"); return request.done("Not logedin"); }
+    if(!('file' in args) || args['file']=="" || !('nfile' in args) || args['nfile'] == "") {
+	env.commandLine.setInput('mv ');
+	return;
+    }
+    if(fileList.indexOf(args['file']));
 };
 
 exports.newUserCommand = function (args, request) {
