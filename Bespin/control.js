@@ -392,7 +392,7 @@ exports.logoutCommand = function (args, request) {
 exports.loginCommand = function (args,request) {
     if(userName !== null) return exports.logoutCommand();
     request.done();
-    $.facebox('<div id="login" class="bespin"><form action="/newUser" method="post" type="input">User:<input id="userName" name="userName" type="input" style="color:#000; width:90%;"/><br>Password:<input id="password" name="password" type="password" style="color:#000; width: 90%; "/><div id="moreUser" style="display:none;">Password Again:<input id="password2" name="password2" type="password" style="color: #000; width:90%" /><br>Email:<input id="userEmail" name="userEmail" type="input" style="color: #000; width:90%" /></div><br><input value="login" type="button" id="loginButton" style="width:40%; display: inline;" /><input value="new user" type="submit" id="newUserButton" style="width:40%; display:inline;"/></form></div>');
+    $.facebox('<div id="login" class="bespin"><p>Check out the new profile and sharing command listing in the sidebar</p><form action="/newUser" method="post" type="input">User:<input id="userName" name="userName" type="input" style="color:#000; width:90%;"/><br>Password:<input id="password" name="password" type="password" style="color:#000; width: 90%; "/><div id="moreUser" style="display:none;">Password Again:<input id="password2" name="password2" type="password" style="color: #000; width:90%" /><br>Email:<input id="userEmail" name="userEmail" type="input" style="color: #000; width:90%" /></div><br><input value="login" type="button" id="loginButton" style="width:40%; display: inline;" /><input value="new user" type="submit" id="newUserButton" style="width:40%; display:inline;"/></form></div>');
     setTimeout('$("#userName").focus();', 30);
     $("#userName,#password").keypress(function (e) {
 	if(e.keyCode == '13') {
@@ -575,7 +575,7 @@ exports.deleteCommand = function (args, request) {
     if(fileList.indexOf(name)!=-1) {
 	Ajax.Call({
 	    "action": "delete",
-	    "name": name,
+	    "name": name
 	}, function (d) {
 	    request.done(d ? "File deleted" : "failed to delete");
 	    if(d) {
