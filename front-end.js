@@ -173,10 +173,30 @@ var ajaxActions = {
 	    db.remove("fs_"+user+"_"+data.name, function () {
 		back(true);
 	    });
+	    db.get("lsPublic_"+user, function(d) {
+		if(d.split("*").indexOf(data.name)!=-1) {
+		    var a = d.split("*");
+		    a.splice(a.indexOf(data.name),1);
+		    db.set("lsPublic_"+user, a.join("*"));
+		}
+	    });
 	});
     },
     rename: function (data, user, back) {
-	back(456);
+	if(!user) return back(false);
+	db.get("lsFs_"+user, function (ls) {
+	    ls = ls.split("*");
+	    console.log(ls);
+	    console.log(ls.indexOf(data.from));
+	    if(ls.indexOf(data.from)==-1) return back(false);
+	    ls[ls.indexOf(data.from)]=data.to;
+	    db.set("lsFs_"+user, ls.join("*"));
+	    db.get("fs_"+user+"_"+data.from, function (f) {
+		db.set("fs_"+user+"_"+data.to, f);
+		db.remove("fs_"+user+"_"+data.from);
+		back(true);
+	    });
+	});
     }
 };
 

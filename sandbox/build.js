@@ -16,7 +16,6 @@ function builder (code, user, back) {
 
 builder.prototype.require = function (code) {
     var self = this;
-    console.log('require call');
     code.replace(/require\s*?\((.*?)\)/g, function (r, v) {
 	try {
 	    console.log(v);
@@ -34,7 +33,7 @@ builder.prototype.require = function (code) {
 };
 
 builder.prototype.searcher = function (name) {
-    console.log('searcher '+name);
+    console.log(name.indexOf('/'))
     if(name.indexOf("./") == 0) {
 	this.counter++;
 	(function (name,self) {
@@ -44,22 +43,23 @@ builder.prototype.searcher = function (name) {
 		self.count();
 	    });
 	})(name, this);
-    }else if(typeof modules[name] != "undefined") {}
-    else if(name.indexOf('/') != -1) {
-	counter++;
-	var user = a.substring(0,a.indexOf('/'));
-	var file = a.substring(a.indexOf('/')+1);
+    }else if(name.indexOf('/') != -1) {
+	this.counter++;
+	var user = name.substring(0,name.indexOf('/'));
+	var file = name.substring(name.indexOf('/')+1);
 	if(typeof this.pub[user] != "undefined") {
 	    if(this.pub[user].indexOf(file) != -1) {
 		(function (name, self) {
 		    db.get("fs_"+user+"_"+file, function (code) {
+			console.log(code)
 			if(code) self.require(code);
 			self.code[name] = code ? jsmin("",code,1) : "throw '"+name+" not found';";
 			self.count();
 		    });
-		})(name, self);
+		})(name, this);
 	    }else{
 		this.code[name] = 'throw "external user module '+name+' was not found";';
+		this.count();
 	    }
 	}else{
 	    (function (user, self, name) {
@@ -68,13 +68,15 @@ builder.prototype.searcher = function (name) {
 			self.code[name] = 'throw "external user module '+name+' was not found";';
 			self.count();
 		    }else{
-			self.pub[user] = data;
+			self.pub[user] = data.split("*");
 			self.searcher(name);
+			self.count();
 		    }
 		});
 	    })(user, this, name);
 	}
-    }else
+    }else if(typeof modules[name] != "undefined") {}
+    else
 	this.code[name] = 'throw "Module '+name+' not found";';
 };
 
@@ -86,41 +88,3 @@ builder.prototype.count = function () {
 exports.build = function (code, user, back) {
     var b = new builder(code, user, back);
 };
-
-
-/*
-
-exports.build = function (code, user, back) {
-    var ret={};
-    var need={};
-    ret._=jsmin("", code, 1);
-    code.replace(/require\s*?\((.*?)\)/g, function (r, v) {
-	try {
-	    console.log(v);
-	    need[v.replace(/\"(.*)\"|\'(.*)\'/, function (r) { return r.substring(1,r.length-1); })]=true;
-	}catch(e) {
-	    throw "Require needs to be static";
-	}
-	return r;
-    });
-    var count=1;
-    for(var name in need) {
-	console.log(name);
-	if(name.indexOf("./") == 0) {
-	    count++;
-	    (function (name) {
-		db.get("fs_"+user+"_"+name.substring(2), function (code) {
-		    ret[name] = code ? jsmin("",code,1) : "throw 'not found';";
-		    if(!--count) back(ret);
-		});
-	    })(name);
-	}else if(typeof modules[name] != "undefined") {}
-	else if(name.indexOf('/')) {
-	    // will be used latter
-	}else
-	    throw "Module "+name+" Not found";
-    }
-    if(!--count) back(ret);
-};
-
-*/

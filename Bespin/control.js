@@ -573,13 +573,14 @@ exports.deleteCommand = function (args, request) {
 	    "action": "delete",
 	    "name": name,
 	}, function (d) {
-	    if(d)
-		request.done("File deleted");
+	    request.done(d ? "File deleted" : "failed to delete");
+	    if(d) {
+		fileList.splice(fileList.indexOf(name),1);
+		if(publicList.indexOf(name)!=-1)
+		    publicList.splice(publicList.indexOf(name),1);
+	    }
 	});
 	Ajax.send();
-	fileList.splice(fileList.indexOf(name),1);
-	if(publicList.indexOf(name)!=-1)
-	    publicList.splice(publicList.indexOf(name),1);
     }else
 	request.done("File not found");
 };
@@ -590,7 +591,21 @@ exports.renameCommand = function (args, request) {
 	env.commandLine.setInput('mv ');
 	return;
     }
-    if(fileList.indexOf(args['file']));
+    if(fileList.indexOf(args['file']) == -1) return request.done("File not found");
+    Ajax.Call({
+	"action": "rename",
+	"from": args['file'],
+	"to": args['nfile']
+    }, function (d) {
+	request.done(d ? "File renamed" : "failed to rename");
+	if(d) {
+	    fileList[fileList.indexOf(args['file'])]=args['nfile'];
+	    if(publicList.indexOf(args['file'])!=-1)
+		publicList[publicList.indexOf(args['file'])]=args['nfile'];
+	}
+    });
+    Ajax.send();
+  
 };
 
 exports.newUserCommand = function (args, request) {

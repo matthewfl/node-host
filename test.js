@@ -24,6 +24,7 @@ var server = http.createServer(function (req, res) {
 		return;
 	    }
 	    sandbox.build(data, urlInfo.query.user, function (d) {
+		console.log(d)
 		var name;
 		do {
 		    name = config.testBase.replace(/\#\#/g, Math.random().toString().substring(2,12));
