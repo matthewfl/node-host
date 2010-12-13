@@ -258,7 +258,7 @@ server.post('/newUser', function (req, res) {
 	});
 	req.on('end', function () {
 	    (function (data) {
-		if(!data.userName || data.userName=="null" || data.userName.length < 2)
+		if(!data.userName || data.userName=="null" || data.userName.length < 2 || /\\|\//.exec(data.userName))
 		    res.notFound("User name not valid");
 		db.has("login_"+data.userName, function (has) {
 		    if(has)
@@ -320,7 +320,8 @@ server.get(/\/p\/(.*)$/, function (req, res, match) {
 		[
 		    function () { db.get("lsOwn_"+user, this); },
 		    function () { db.get("setting_name_"+user, this); },
-		    function () { db.get("profile_"+user, this); }
+		    function () { db.get("profile_"+user, this); },
+		    function () { db.get("lsPublic_"+user, this); }
 		],
 		[
 		    function () {
@@ -345,11 +346,18 @@ server.get(/\/p\/(.*)$/, function (req, res, match) {
 			    this(Markdown(this[2].replace(/</g, "&lt;").replace(/>/g, "&gt;")));
 			else
 			    this("You can create your profile using the profile command from the editor");
+		    },
+		    function () {
+			if(!this[3]) return this("");
+			var i,ret="",l=this[3].split("*");
+			for(i=0;i<l.length;i++)
+			    ret+= '<div class="publicF"><a class="publicL" href="/code/'+user+'/'+l[i]+'" target="_blank">'+l[i]+'</a></div>';
+			this(ret);
 		    }
 		],
 		function () {
 		    res.writeHead(200, {"Content-type": "text/html"});
-		    res.write(indexFiles.profile.replace(/\{SUBDOMAIN\}/g, this[0]).replace(/\{EHASH\}/g, this[1]).replace(/\{USER\}/g, user.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")).replace(/\{NAME\}/g, this[2]).replace(/\{MARKDOWN\}/g, this[3]));
+		    res.write(indexFiles.profile.replace(/\{SUBDOMAIN\}/g, this[0]).replace(/\{EHASH\}/g, this[1]).replace(/\{USER\}/g, user.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")).replace(/\{NAME\}/g, this[2]).replace(/\{MARKDOWN\}/g, this[3]).replace(/\{PUBLIC\}/g, this[4]));
 		    res.end();
 		}
 	    ]);
@@ -358,6 +366,25 @@ server.get(/\/p\/(.*)$/, function (req, res, match) {
 	    res.write("The user was not found");
 	    res.end();
 	}
+    });
+});
+
+server.get(/\/code\/(.*)$/, function (req, res, match) {
+    //res.writeHead(200, {"Content-Type": "text/html"});
+    var user = match.substring(0,match.indexOf('/'));
+    var file = match.substring(match.indexOf('/')+1);
+    db.get("lsPublic_"+user, function (data) {
+	if(!data || data.split("*").indexOf(file) == -1) {
+	    res.writeHead(401, {"Content-Type": "text/html"});
+	    res.end("<p>The file was not found, or not public</p>");
+	}
+	res.writeHead(200, {"Content-type": "text/html"});
+	db.get("fs_"+user+"_"+file, function (code) {
+	    res.write("<p>This code can be loaded in to anyones project using: <code>require(\""+user+"/"+file+"\");</code></p><p><code>");
+	    res.write(code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>").replace(/\t/g, "&nbsp;&nbsp;&nbsp;&nbsp;").replace(/\s/g, "&nbsp;"));
+	    res.write("</code></p>");
+	    res.end();
+	});
     });
 });
 

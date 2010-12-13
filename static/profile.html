@@ -10,6 +10,17 @@
       _gaq.push(['_setAccount', 'UA-504603-3']);
       _gaq.push(['_setDomainName', 'jsapp.us']);
       _gaq.push(['_trackPageview']);
+      var loadedHR=false;
+      $(function () {
+	  $("a.publicL").click(function () {
+	      if(!loadedHR){
+                $("#mark").append("<hr>");
+                loadedHR=true;
+              }
+              $("#codeView").load($(this).attr('href'));
+	      return false;
+	  });
+      });
     </script>
   </head>
   <body>
@@ -27,6 +38,11 @@
 	  {SUBDOMAIN}
 	  <div class="break"> </div>
 	</div>
+	<h4><center>Public files</center></h4>
+	<div id="public" class="push_1">
+	  {PUBLIC}
+	  <div class="break"> </div>
+	</div>
       </div>
       <div class="grid_9">
 	<div class="alpha"> </div>
@@ -35,9 +51,11 @@
 	</div>
 	<div class="clear"> </div>
 	<hr>
-	<div class="grid_9">
+	<div class="grid_9" id="mark">
 	  {MARKDOWN}
 	</div>
+	<div class="clear"> </div>
+	<div class="grid_9" id="codeView"></div>
 	<div class="omega"> </div>
       </div>
       <div class="clear"> </div>

@@ -408,6 +408,10 @@ exports.loginCommand = function (args,request) {
 	    alert("Username is to short");
 	    return false;
 	}
+	if(/\\|\//.exec($("#userName").val())) {
+	    alert("Username can not contain \/ or \\");
+	    return false;
+	}
 	if(!$("#password").val()) {
 	    alert("There is no password entered");
 	    return false;
