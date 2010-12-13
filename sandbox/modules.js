@@ -38,6 +38,20 @@ exports.crypto = function (context) {
     return copy(require('crypto'));
 };
 
+exports.querystring = function (context) {
+    return copy(require('querystring'));
+};
+
+var _http_client;
+exports._http_client = function (context) {
+    _http_client = _http_client || require('http');
+    return {
+	create: function (host) {
+	    _http_client.createClient(80, host);
+	}
+    };
+};
+
 exports.util = exports.sys = function (context) {
     function nothing () {}
     return {

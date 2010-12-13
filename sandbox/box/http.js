@@ -9,6 +9,11 @@ exports.createServer = function (fun) {
     return new Server(fun);
 };
 
+exports.createClient = function (port, host) {
+    // port is locked to be 80 all the time
+    return require('_http_client').create(host);
+};
+
 exports.STATUS_CODES = {
   100 : 'Continue',
   101 : 'Switching Protocols',
