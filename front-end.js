@@ -197,6 +197,27 @@ var ajaxActions = {
 		back(true);
 	    });
 	});
+    },
+    "delete-sub-domain": function (data, user, back) {
+	if(!user) back(false);
+	if((/[^a-zA-Z0-9\-]/.exec(data.name))) return back(false);
+	db.get("lsOwn_"+user, function (list) {
+	    list = list.split("*");
+	    if(list.indexOf(data.domain) == -1) return back(false);
+	    db.get("owner_"+data.domain, function (ownerC) {
+		if(ownerC != user) back(false);
+		db.remove("app_"+data.domain);
+		fs.open(config.deleteDomainFile, 'a+', function (err, fd) {
+		    fs.write(fd, new Buffer(data.domain+'\n', 'ascii'), 0, data.domain.length+1, 0, function (err, written) {
+			fs.close(fd);
+			db.remove("owner_"+data.domain);
+			list.splice(list.indexOf(data.domain), 1);
+			db.set("lsOwn_"+user, list.join("*"));
+			back(true);
+		    });
+		});
+	    });
+	});
     }
 };
 

@@ -194,12 +194,24 @@
 	    "pointer":"#reloadCheck",
 	    "params":[],
 	    "key": "ctrl_r"
+	},
+	{
+	    "ep": "command",
+	    "name": "delete-42-domain",
+	    "pointer": "#deleteDomainCommand",
+	    "params": [
+		{
+		    "name": "domain",
+		    "type": "text",
+		    "description": "Domain to delete"
+		}
+	    ]
 	}
     ]
 });
 "end";
 
-    var discardChanges = "Are you sure that you want to discard all changes";
+var discardChanges = "Are you sure that you want to discard all changes";
 
 require('facebox'); // just to load it into jquery
 
@@ -646,6 +658,29 @@ exports.shareCommand = function (args, request) {
     Ajax.send();
 };
 
+var deletedDomainAlready=false;
+exports.deleteDomainCommand = function (args, request) {
+    if(!userToken) { alert("you need to login for this command"); return request.done("Not logedin"); }
+    if(!('domain' in args) || args['domain'] == "" || hostList.indexOf(args['domain']) == -1) {
+	return request.done("domain name not found, your domains:<br>"+hostList.join("<br>"));
+    }
+    if(deletedDomainAlready) {
+	return request.done("To delete another domain logout and log back in, one domain delete per login");
+    }
+    var domain=args['domain'];
+    if(prompt("To delete "+domain+" enter:\nI "+userName+" want to delete "+domain, "") != "I "+userName+" want to delete "+domain) return request.done("domain was not deleted");
+    Ajax.Call({
+	"action": "delete-sub-domain",
+	"domain": domain
+    }, function (b) {
+	deletedDomainAlready = b;
+	request.done(b ? "Domain was deleted" : "failed to delete domain");
+	if(b) {
+	    hostList.splice(hostList.indexOf(domain), 1);
+	}
+    });
+    Ajax.send();
+};
 
 exports.docsCommand = function () {
     //window.open("http://wiki.matthewfl.com/jsapp:start");

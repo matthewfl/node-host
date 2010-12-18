@@ -24,3 +24,5 @@ exports.testDbPort=8081;
 exports.dbPort='/tmp/tyrant';
 exports.dbHost="";
 exports.dbSyncTime=10*1000;
+
+exports.deleteDomainFile="/home/matthew/jsapp_delete_domain"; // change this to some place that you can write to
