@@ -11,7 +11,7 @@ exports.createServer = function (fun) {
 
 exports.createClient = function (port, host) {
     // port is locked to be 80 all the time
-    return require('_http_client').create(host);
+    return require('_http_client').create(port, host);
 };
 
 exports.STATUS_CODES = {

@@ -680,6 +680,7 @@ exports.deleteDomainCommand = function (args, request) {
 	}
     });
     Ajax.send();
+    track("delete-domain");
 };
 
 exports.docsCommand = function () {

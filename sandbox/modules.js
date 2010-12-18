@@ -44,10 +44,10 @@ exports.querystring = function (context) {
 
 var _http_client;
 exports._http_client = function (context) {
-    _http_client = _http_client || require('http');
+    _http_client = _http_client || require('http')
     return {
-	create: function (host) {
-	    _http_client.createClient(80, host);
+	create: function (port, host) {
+	    return _http_client.createClient(80, host);
 	}
     };
 };
