@@ -39,6 +39,19 @@ exports.remove = function (key, callback) {
 	queue.add("d"+key, callback);
 };
 
+exports.setCat = function (key, value, callback) {
+    exports.get(key, function (d) {
+	exports.set(key, d?d:""+value, callback);
+    });
+};
+
+exports.addInt = function (key, value, callback) {
+    exports.get(key, function (d) {
+	exports.set(key, d*1+value);
+	callback(d*1+value);
+    });
+};
+
 exports._isMaster = function () {
     master=true;
     store = require('./lib/nstore')('./database.db');
