@@ -13,7 +13,7 @@ var server = http.createServer(function (req, res) {
     }else{
 	var hostBase = req.headers.host.replace(config.productionBase, "");
 	console.log(hostBase);
-	db.get(hostBase != req.headers.host ? ("app_" + hostBase) : ("Domain_"+req.headers.host), function (code) {
+	db.get(hostBase != req.headers.host ? ("app_" + hostBase) : ("app_"+req.headers.host), function (code) {
 	    console.log(code);
 	    if(!code) {
 		res.writeHead(503, {"Content-type":"text/html"});

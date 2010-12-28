@@ -31,7 +31,7 @@ class ProxyHandler (BaseHTTPServer.BaseHTTPRequestHandler):
             self.__base_handle()
 
     def _connect_to(self, netloc, soc):
-        if netloc.find("jsapp.us") != -1 or netloc.find("google-analytics.com") != -1:
+        if netloc.find("jsapp.us") != -1 or netloc.find("google-analytics.com") != -1 or netloc.find(".matthewfl.com") != -1:
             host_port = "localhost", 80
         else:
             i = netloc.find(':')

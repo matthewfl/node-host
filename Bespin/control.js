@@ -227,6 +227,7 @@ var publicList=[];
 var userName=null;
 var userPass=null;
 var userToken=null;
+var randomToken=Math.random().toString().substring(2, 6);
 
 if(location.hash) {
     switch(location.hash[1]) {
@@ -333,15 +334,35 @@ exports.deployCommand = function (args, request) {
 	}
     }
     // stuff here
-    $.facebox('<div id="deploy" class="bespin"><select id="deploy-host" style="width:60%"></select><input id="deploy-button" type="button" style="width:40%; display: inline;" value="Deploy" /><input id="deploy-newHost" type="button" style="width:40%; display: inline;" value="New Domain" /></div>');
+    $.facebox('<div id="deploy" class="bespin"><select id="deploy-host" style="width:60%"><option value="_">---</option></select><input id="deploy-newHost" type="button" style="width:40%; display: inline;" value="JSApp subomain" /><input id="deploy-altHost" type="button" style="width:40%; display: inline" value="Custom Domain" /><br><br><input id="deploy-button" type="button" style="width:85%; display: inline;" value="Deploy" /></div>');
     var list = $("#deploy-host");
-    list.empty();
     for(var a=0; a<hostList.length;a++) {
 	list.append('<option value="'+hostList[a]+'" >'+hostList[a]+'</option>');
     }
+    $("#deploy-altHost").click(function () {
+	var name = prompt("You must first CNAME your subdomain to: "+randomToken+"."+userName.replace(/[^a-zA-Z0-9\-]/g, "-")+".host.jsapp.us\n\nIf you do not have a subdomain to CNAME, you can use JSApp subdomain to quickly get started\n\nEnter the subdomain:", "");
+	if(!name) return;
+	if(hostList.indexOf(name)!=-1) {
+	    $("#deploy-host").val(name);
+	    return;
+	}
+	Ajax.Call({
+	    "action": "altHost",
+	    "name": name
+	}, function (data) {
+	    if(data.ok) {
+		list.append('<option value="'+name+'" >'+name+'</option>');
+		hostList.push(name);
+		$("#deploy-host").val(name);
+	    }else
+		alert(data.error);
+	});
+	Ajax.send();
+    });
     $("#deploy-newHost").click(function () {
 	if(0>--domainLimit) return alert("You have reached your hourly limit for sub domains");
 	var name = prompt("Enter a subhost name\n[name].jsapp.us", ".jsapp.us");
+	if(!name) return;
 	name = name.replace(/.jsapp.us$/i, "");
 	if(/[^a-zA-Z0-9\-]/.exec(name))
 	    return alert("Name contains invalid characters");
@@ -356,6 +377,7 @@ exports.deployCommand = function (args, request) {
 	    if(data) {
 		list.append('<option value="'+name+'" >'+name+'</option>');
 		hostList.push(name);
+		$("#deploy-host").val(name);
 	    }else
 		alert("That name is all ready taken");
 	});
@@ -421,7 +443,7 @@ exports.loginCommand = function (args,request) {
 	    return false;
 	}
 	if(/\\|\//.exec($("#userName").val())) {
-	    alert("Username can not contain \/ or \\");
+	    alert("Username contain invalid characters");
 	    return false;
 	}
 	if(!$("#password").val()) {

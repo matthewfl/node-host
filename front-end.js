@@ -2,6 +2,7 @@ var crypto = require('crypto');
 var querystring = require('querystring');
 var http = require('http');
 var fs = require('fs');
+var dns = require('dns');
 
 var router = require('./lib/node-router');
 var server = router.getServer();
@@ -92,6 +93,15 @@ var ajaxActions = {
 	    }else
 		return back(false);
 
+	});
+    },
+    altHost: function (data, user, back) {
+	if(!user) back(false);
+	dns.resolveCname(data.name, function (err, addr) {
+	    if(err) return back({ok: false, error: "Not CNAMEd"});
+	    if(addr[0].split('.')[1] != user.replace(/[^a-zA-Z0-9\-]/g, "-")) return back({ok: false, error: "CNAMEd to the wrong subdomain, unable to verify"});
+	    db.set("owner_"+data.name, user, function () { back({ok: true}); });
+	    db.setCat("lsOwn_"+user, data.name+"*");
 	});
     },
     deploy: function (data, user, back) {
