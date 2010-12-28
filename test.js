@@ -29,6 +29,7 @@ var server = http.createServer(function (req, res) {
 		    name = urlInfo.query.token+"."+urlInfo.query.file+"."+urlInfo.query.user+config.testBase;
 		else
 		    name = Math.random().toString().substring(2,12) + config.testBase;
+		name = name.toLowerCase();
 		var tmp_db={};
 		if(boxes[name]) {
 		    clearTimeout(boxes[name]._timer);
