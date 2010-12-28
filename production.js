@@ -12,7 +12,7 @@ var server = http.createServer(function (req, res) {
 	boxes[req.headers.host].server(req,res);
     }else{
 	var hostBase = req.headers.host.replace(config.productionBase, "");
-	console.log(hostBase);
+	console.log(req.headers.host);
 	db.get(hostBase != req.headers.host ? ("app_" + hostBase) : ("app_"+req.headers.host), function (code) {
 	    console.log(code);
 	    if(!code) {

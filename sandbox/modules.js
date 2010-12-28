@@ -71,9 +71,7 @@ var db;
 exports.db = exports.database = function (context, config) {
     db = db || require('../db');
     var baseName = "db_"+config.user+"_"+config.name+"_";
-    var tmp={};
-    console.log(config);
-    console.log(baseName)
+    var tmp=config._tmp_db;
     return {
 	get: function (name, back) {
 	    if(config.test && tmp[name]) back(tmp[name]);

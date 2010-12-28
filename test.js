@@ -17,7 +17,7 @@ var server = http.createServer(function (req, res) {
 	});
 	req.on('end', function () {
 	    var urlInfo = urlParse(req.url, true);
-	    console.log(data, urlInfo.query.user, urlInfo.query.app);
+	    console.log(data, urlInfo.query.user, urlInfo.query.file, req.url);
 	    if(urlInfo.query.key != config.testSKey) {
 		res.write("This test server has expired");
 		res.end();
@@ -25,14 +25,19 @@ var server = http.createServer(function (req, res) {
 	    }
 	    sandbox.build(data, urlInfo.query.user, function (d) {
 		var name;
-		do {
-		    name = config.testBase.replace(/\#\#/g, Math.random().toString().substring(2,12));
-		}while(boxes[name] && config.testDoNotOverwrite);
-		boxes[name] = new sandbox.SandBox(d, {test: true, user: urlInfo.query.user || null, app: urlInfo.query.app || null});
-		if(config.testDoNotOverwrite) // if overwritable, then no need to keep clean
-		    setTimeout(function () {
-			boxes[name] =null;
-		    }, config.testTimeToLive);
+		if(urlInfo.query.user && urlInfo.query.user != "null" && urlInfo.query.file && urlInfo.query.file != "null")
+		    name = urlInfo.query.token+"."+urlInfo.query.file+"."+urlInfo.query.user+config.testBase;
+		else
+		    name = Math.random().toString().substring(2,12) + config.testBase;
+		var tmp_db={};
+		if(boxes[name]) {
+		    clearTimeout(boxes[name]._timer);
+		    tmp_db=boxes[name].config._tmp_db;
+		}
+		boxes[name] = new sandbox.SandBox(d, {test: true, user: urlInfo.query.user || null, name: urlInfo.query.fileName || null, _tmp_db: tmp_db});
+		boxes[name]._timer = setTimeout(function () {
+		    boxes[name] =null;
+		}, config.testTimeToLive);
 		res.write("http://"+name /* + ":8000" for testing */);
 		if(boxes[name].error) res.write("\nerror\n");
 		res.end();

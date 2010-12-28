@@ -12,11 +12,11 @@ exports.checkOkCode = "Random Check Ok Code";
 
 
 exports.testPort=8090;
-exports.testBase="##.test.jsapp.us"; // "##.localhost:8090"
+exports.testBase=".test.jsapp.us"; // "##.localhost:8090"
 exports.testHost="node_test_host_id";
 exports.testSKey="sampleKey"; // https://www.random.org/passwords/?num=1&len=24&format=plain&rnd=new
-exports.testTimeToLive=5*60*1000; // in ms
-exports.testDoNotOverwrite=true; // should be true in production
+exports.testTimeToLive=15*60*1000; // in ms
+//exports.testDoNotOverwrite=true; // should be true in production
 
 exports.errorPage="http://jsapp.us/error";
 

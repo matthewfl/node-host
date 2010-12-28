@@ -301,7 +301,9 @@ exports.testCommand = function (args, request) {
     var win = window.open("");
     Ajax.Call({
 	"action": "test",
-	"code": env.editor.value
+	"code": env.editor.value,
+	"randToken": randomToken,
+	"fileName": loadFile
     }, function (p) {
 	win.location.href=p;
     });

@@ -3,6 +3,7 @@ var querystring = require('querystring');
 var http = require('http');
 var fs = require('fs');
 var dns = require('dns');
+var querystring = require('querystring');
 
 var router = require('./lib/node-router');
 var server = router.getServer();
@@ -66,7 +67,7 @@ var ajaxActions = {
     test: function (data, user, back) {
 	try {
 	    var con = http.createClient(config.testPort, 'localhost');
-	    var r = con.request('POST', '/?key='+config.testSKey+'&user='+user, {
+	    var r = con.request('POST', '/?'+querystring.stringify({"key":config.testSKey,"token":data.randToken,"file":data.fileName,"user":user}), {
 		"host": config.testHost
 	    }, {'Content-Length': data.code.length});
 	    r.on('response', function (response) {
