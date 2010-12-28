@@ -388,6 +388,7 @@ exports.deployCommand = function (args, request) {
     });
     $("#deploy-button").click(function () {
 	var name = $("#deploy-host").val();
+	if(name == "_") return;
 	Ajax.Call({
 	    "action": "deploy",
 	    "name": name,
