@@ -115,7 +115,7 @@ var ajaxActions = {
 	    }
 	    db.get("fs_"+user+"_"+data.file, function (codeS) {
 		var con = http.createClient(config.testPort, 'localhost');
-		var r = con.request('POST', '/?key='+config.testSKey+'&user='+user, {
+		var r = con.request('POST', '/?key='+config.testSKey+'&user='+user+"&file="+data.file, {
 		    "host": config.testHost,
 		    'Content-Length': codeS.length
 		});
@@ -129,7 +129,7 @@ var ajaxActions = {
 			    back("Deploy failed due to error");
 			    return;
 			}
-			sandbox.build(codeS, user, function (build) {
+			sandbox.build(codeS, user, data.file, function (build) {
 			    db.set("app_"+data.name, JSON.stringify({user: user, name: data.name, code: build, id: Date.now()}));
 			    back("Deploy successful\nGive a few minutes for the application to update");
 			});

@@ -23,10 +23,11 @@ var server = http.createServer(function (req, res) {
 		res.end();
 		return;
 	    }
-	    sandbox.build(data, urlInfo.query.user, function (d) {
+	    sandbox.build(data, urlInfo.query.user, urlInfo.query.file, function (d) {
+		console.log(d)
 		var name;
 		if(urlInfo.query.user && urlInfo.query.user != "null" && urlInfo.query.file && urlInfo.query.file != "null")
-		    name = urlInfo.query.token+"."+urlInfo.query.file+"."+urlInfo.query.user+config.testBase;
+		    name = urlInfo.query.token+"."+urlInfo.query.file.replace(/[^a-zA-Z0-9]/g,"-")+"."+urlInfo.query.user+config.testBase;
 		else
 		    name = Math.random().toString().substring(2,12) + config.testBase;
 		name = name.toLowerCase();
