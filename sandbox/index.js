@@ -14,7 +14,6 @@ function SandBox (code, config) {
     self.last_count_time = Date.now();
     self.error = false;
     this.context={
-	//__server: function () {throw "server not implemented";},
 	__server: function (fun) { self.raw_server=fun || function () {throw "server not implemented";};},
 	__get_code: function (name) {
 	    if(modules[name]) {
@@ -99,4 +98,6 @@ SandBox.prototype.server = function (req, res) {
 
 
 exports.SandBox = SandBox;
-exports.build = require('./build').build;
+exports.build = function () {
+    return require('./build').build.apply(this, arguments)
+};
