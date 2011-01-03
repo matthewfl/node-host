@@ -245,6 +245,7 @@ if(location.hash) {
 if(location.href.indexOf("/s/")!=-1) {
     env.editor.value = env.editor.value.replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&");
     env.commandLine.execute('goto 1');
+    loadFile=location.href.substring(location.href.indexOf("/s/")+3);
 }
 
 function track (event) {

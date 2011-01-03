@@ -20,6 +20,7 @@ builder.prototype.compiler = function (code, name, root) {
 	try {
 	    switch(suffix) {
 	    case 'coffee':
+		code = code.replace(/\/\/[^\n]*/g, "").replace(/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/g, "");
 		code = require('./compilers/coffee/lib/coffee-script').compile(code)
 		break;
 	    }

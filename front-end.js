@@ -144,9 +144,11 @@ var ajaxActions = {
 	if(!user) return back(false);
 	db.get("fs_"+user+"_"+data.file, function (shareCode) {
 	    if(!shareCode) return back({ok: false});
+	    var suffix="";
+	    try{ suffix=/(\.[a-zA-Z0-9]*)$/.exec(data.file)[1].toLowerCase(); }catch(e){}
 	    db.addInt('share_index', 1, function (val) {
 		db.set('share_'+val, shareCode);
-		back({ok: true, num: val});
+		back({ok: true, num: val+suffix});
 	    });
 	});
     },
