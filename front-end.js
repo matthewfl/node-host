@@ -68,8 +68,9 @@ var ajaxActions = {
 	try {
 	    var con = http.createClient(config.testPort, 'localhost');
 	    var r = con.request('POST', '/?'+querystring.stringify({"key":config.testSKey,"token":data.randToken,"file":data.fileName,"user":user}), {
-		"host": config.testHost
-	    }, {'Content-Length': data.code.length});
+		"host": config.testHost,
+		'Content-Length': data.code.length
+	    });
 	    r.on('response', function (response) {
 		response.on('data', function (d) {
 		    back(d.toString('ascii', 0).replace(/error\n/, ""));
@@ -115,8 +116,9 @@ var ajaxActions = {
 	    db.get("fs_"+user+"_"+data.file, function (codeS) {
 		var con = http.createClient(config.testPort, 'localhost');
 		var r = con.request('POST', '/?key='+config.testSKey+'&user='+user, {
-		    "host": config.testHost
-		}, {'Content-Length': codeS.length});
+		    "host": config.testHost,
+		    'Content-Length': codeS.length
+		});
 		r.on('response', function (response) {
 		    var tres="";
 		    response.on('data', function (d) {
@@ -128,9 +130,8 @@ var ajaxActions = {
 			    return;
 			}
 			sandbox.build(codeS, user, function (build) {
-			    db.set("app_"+data.name, JSON.stringify({user: user, name: data.name, code: build, id: Date.now()}), function () {
-				back("Deploy successful\nGive a few minutes for the application to update");
-			    });
+			    db.set("app_"+data.name, JSON.stringify({user: user, name: data.name, code: build, id: Date.now()}));
+			    back("Deploy successful\nGive a few minutes for the application to update");
 			});
 		    });
 		});
@@ -248,7 +249,7 @@ server.post('/ajax', function (req, res, match) {
 		if(d.user && d.token)
 		    if(checkUser(d))
 			userName=d.user;
-	    }catch (e) { return res.end(); }
+	    }catch (e) { return res.end('{"user":null}'); }
 	    EndCount++;
 	    for(var i=0;i<d.actions.length;i++) {
 		if(ajaxActions[d.actions[i].action]) {
