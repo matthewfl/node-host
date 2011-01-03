@@ -1,0 +1,16 @@
+{
+  "name": "jsapp",
+  "description": "A command line interface to jsapp.us",
+  "version": "0.0.1",
+  "homepage": "http://jsapp.us",
+  "author": "Matthew Francis-Landau <matthew@matthewfl.com> (http://matthewfl.com)",
+  "directories": {
+    "bin":"."
+  },
+  "bin": {
+    "jsapp":"./jsapp.js"
+  },
+  "engines": {
+    "node": "*"
+  }
+}
