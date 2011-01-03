@@ -1,3 +1,6 @@
 [submodule "static/less"]
 	path = static/less
 	url = https://github.com/cloudhead/less.js.git
+[submodule "sandbox/compilers/coffee"]
+	path = sandbox/compilers/coffee
+	url = git://github.com/jashkenas/coffee-script.git
