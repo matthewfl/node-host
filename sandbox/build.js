@@ -1,6 +1,7 @@
 var db = require('../db');
 var jsmin = require('../lib/jsmin').jsmin;
 var modules = require('./modules');
+var spawn = require('child_process').spawn
 
 function builder (code, user, Fname, back) {
     this.back = back;
@@ -14,23 +15,53 @@ function builder (code, user, Fname, back) {
 }
 
 builder.prototype.compiler = function (code, name, root) {
+    var self=this;
+    function done (code) {
+	self.require(code);
+	self.code[root === true ? "_" : name] = jsmin("",code,1);
+    }
     try {
 	var suffix = /\.([a-zA-Z0-9]*)$/.exec(name)[1].toLowerCase();
 	// do compiling of code here
 	try {
 	    switch(suffix) {
 	    case 'coffee':
-		code = code.replace(/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/g, "");
-		code = require('./compilers/coffee/lib/coffee-script').compile(code)
+		// code = code.replace(/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/g, "");
+		var cofcomp = spawn('./compiler/coffee/bin/coffee', ['-sc']);
+		var data="";
+		cofcomp.stdout.on('data', function (d) { 
+		    
+		    data += d;
+		});
+		cofcomp.on('exit', function () {
+		    console.log("................................exit", data);
+		    done(data);
+		});
+		setTimeout(function () {
+		    cofcomp.stdin.write(code)
+		    cofcomp.stdin.end();
+		}, 100);
+		
 		break;
+
+	    default:
+		console.log("ddone");
+		done(code);
 	    }
 	}catch(e) {
 	    // report errors to users
 	    code = "throw "+JSON.stringify(e);
+	    console.log("edone");
+	    done(code);
 	}
-    }catch(e){}
-    this.require(code);
-    this.code[root === true ? "_" : name] = jsmin("",code,1); 
+    }catch(e){
+	console.log("gdone");
+	done(code);
+    }
+/*
+  this.require(code);
+  this.code[root === true ? "_" : name] = jsmin("",code,1); 
+*/
 };
 
 builder.prototype.require = function (code) {
