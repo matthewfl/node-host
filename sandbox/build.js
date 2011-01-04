@@ -27,7 +27,10 @@ builder.prototype.compiler = function (code, name, root) {
 	try {
 	    switch(suffix) {
 	    case 'coffee':
-		code = code.replace(/\*([^*]|[\r\n]|(\*+([^*\/]|[\r\n])))*\*+/g, "");
+		// this first one seems to hange the process
+		//code = code.replace(/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/g, "");
+		// I know this is most likely not 100%, but it gets the comments out in the shared code
+		code = code.replace(/\/\*([^*]|\*[^\/])*?\*\//g, "");
 		var cofcomp = spawn('node', [__dirname + '/compilers/coffee/bin/coffee', '-sc']);
 		var data="";
 		cofcomp.stderr.on('data', function (d) {
@@ -35,11 +38,9 @@ builder.prototype.compiler = function (code, name, root) {
 		    data += "throw " + JSON.stringify(d)+";";
 		});
 		cofcomp.stdout.on('data', function (d) { 
-		    console.log(d);
 		    data += d.toString();
 		});
 		cofcomp.on('exit', function () {
-		    console.log('exit');
 		    done(data);
 		});
 		cofcomp.stdin.write(code);
