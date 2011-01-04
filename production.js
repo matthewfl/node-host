@@ -33,7 +33,7 @@ setInterval(function () {
     var time = Date.now();
     for(var a in boxes) {
 	if(time - boxes[a]._last_use > 300*1000) {
-	    boxes[a] = null;
+	    delete boxes[a];
 	}
     }
     for(var a in boxes) {
