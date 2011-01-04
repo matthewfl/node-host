@@ -237,6 +237,11 @@ function syntax () {
 	    switch (suffix) {
 	    case 'coffee':
 		throw "coffee";
+	    case 'html':
+	    case 'htm':
+		throw "html";
+	    case 'css':
+		throw 'css';
 	    default:
 		throw "js";
 	    }
