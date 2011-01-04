@@ -11,14 +11,15 @@ function builder (code, user, Fname, back) {
     this.code = {};
     this.counter=1;
     this.compiler(code, Fname, true);
-    this.count();
 }
 
 builder.prototype.compiler = function (code, name, root) {
     var self=this;
     function done (code) {
+	console.log(code);
 	self.require(code);
 	self.code[root === true ? "_" : name] = jsmin("",code,1);
+	self.count();
     }
     try {
 	var suffix = /\.([a-zA-Z0-9]*)$/.exec(name)[1].toLowerCase();
@@ -26,42 +27,37 @@ builder.prototype.compiler = function (code, name, root) {
 	try {
 	    switch(suffix) {
 	    case 'coffee':
-		// code = code.replace(/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/g, "");
-		var cofcomp = spawn('./compiler/coffee/bin/coffee', ['-sc']);
+		code = code.replace(/\*([^*]|[\r\n]|(\*+([^*\/]|[\r\n])))*\*+/g, "");
+		var cofcomp = spawn('node', [__dirname + '/compilers/coffee/bin/coffee', '-sc']);
 		var data="";
+		cofcomp.stderr.on('data', function (d) {
+		    console.log("error", d);
+		    data += "throw " + JSON.stringify(d)+";";
+		});
 		cofcomp.stdout.on('data', function (d) { 
-		    
-		    data += d;
+		    console.log(d);
+		    data += d.toString();
 		});
 		cofcomp.on('exit', function () {
-		    console.log("................................exit", data);
+		    console.log('exit');
 		    done(data);
 		});
-		setTimeout(function () {
-		    cofcomp.stdin.write(code)
-		    cofcomp.stdin.end();
-		}, 100);
+		cofcomp.stdin.write(code);
+		cofcomp.stdin.end();
 		
 		break;
 
 	    default:
-		console.log("ddone");
 		done(code);
 	    }
 	}catch(e) {
 	    // report errors to users
 	    code = "throw "+JSON.stringify(e);
-	    console.log("edone");
 	    done(code);
 	}
     }catch(e){
-	console.log("gdone");
 	done(code);
     }
-/*
-  this.require(code);
-  this.code[root === true ? "_" : name] = jsmin("",code,1); 
-*/
 };
 
 builder.prototype.require = function (code) {
@@ -90,9 +86,10 @@ builder.prototype.searcher = function (name) {
 	    db.get("fs_"+self.user+"_"+name.substring(2), function (code) {
 		if(code) 
 		    self.compiler(code,name);
-		else
+		else {
 		    self.code[name] = "throw '"+name+" not found';";
-		self.count();
+		    self.count();
+		}
 	    });
 	})(name, this);
     }else if(name.indexOf('/') != -1) {
@@ -106,9 +103,10 @@ builder.prototype.searcher = function (name) {
 			console.log(code)
 			if(code)
 			    self.compiler(code,name);
-			else
+			else {
 			    self.code[name] = "throw '"+name+" not found';";
-			self.count();
+			    self.count();
+			}
 		    });
 		})(name, this);
 	    }else{
