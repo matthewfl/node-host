@@ -229,6 +229,25 @@ var userPass=null;
 var userToken=null;
 var randomToken=Math.random().toString().substring(2, 6);
 
+function syntax () {
+    // check the file name and select a syntax for it
+    try {
+	var suffix = /\.([a-zA-Z0-9]*)$/.exec(loadFile)[1].toLowerCase();
+	try {
+	    switch (suffix) {
+	    case 'coffee':
+		throw "coffee";
+	    default:
+		throw "js";
+	    }
+	}catch(s) {
+	    env.editor.syntax=s;
+	}
+    }catch(e) {
+	env.editor.syntax = "js";
+    }
+}
+
 if(location.hash) {
     switch(location.hash[1]) {
     case 'u':
@@ -246,6 +265,7 @@ if(location.href.indexOf("/s/")!=-1) {
     env.editor.value = env.editor.value.replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&");
     env.commandLine.execute('goto 1');
     loadFile=location.href.substring(location.href.indexOf("/s/")+3);
+    syntax();
 }
 
 function track (event) {
@@ -261,6 +281,7 @@ exports.openCommand = function (args, request) {
     if(loadValue != env.editor.value)
 	if(!confirm(discardChanges)) return;
     loadFile = args['file'];
+    syntax();
     Ajax.Call({
 	"action": "open",
 	"name": loadFile
@@ -283,6 +304,7 @@ exports.saveCommand = function (args, request) {
     if(!file) return alert("No file name given");
     loadValue=env.editor.value;
     loadFile=file;
+    syntax();
     if(loadFile.indexOf("*")!=-1) {loadFile=null;return alert("File name can not containt *");}
     Ajax.Call({
 	"action": "save",
