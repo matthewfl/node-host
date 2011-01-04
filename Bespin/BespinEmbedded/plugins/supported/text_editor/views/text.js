@@ -56,9 +56,6 @@ exports.TextView = function(container, editor) {
     CanvasView.call(this, container, true /* preventDownsize */ );
     this.editor = editor;
 
-    // Takes the layoutManager of the editor and uses it.
-    var textInput = this.textInput = new TextInput(container, this);
-
     this.padding = {
         top: 0,
         bottom: 30,
@@ -70,6 +67,7 @@ exports.TextView = function(container, editor) {
 
     var dom = this.domNode;
     dom.style.cursor = "text";
+    dom.addEventListener('click', this.click.bind(this), false);
     dom.addEventListener('mousedown', this.mouseDown.bind(this), false);
     dom.addEventListener('mousemove', this.mouseMove.bind(this), false);
     window.addEventListener('mouseup', this.mouseUp.bind(this), false);
@@ -82,6 +80,8 @@ exports.TextView = function(container, editor) {
     this.endedChangeGroup = new Event();
     this.willReplaceRange = new Event();
     this.replacedCharacters = new Event();
+
+    this.textInput = new TextInput(container, this);
 };
 
 exports.TextView.prototype = new CanvasView();
@@ -187,10 +187,14 @@ util.mixin(exports.TextView.prototype, {
     },
 
     _drawLines: function(rect, context) {
-        var layoutManager = this.editor.layoutManager;
+        var editor = this.editor;
+        var layoutManager = editor.layoutManager;
         var textLines = layoutManager.textLines;
         var lineAscent = layoutManager.fontDimension.lineAscent;
-        var themeHighlighter = this.editor.themeData.highlighter
+
+        var themeData = editor.themeData;
+        var fgColors = themeData.highlighterFG;
+        var bgColors = themeData.highlighterBG;
 
         context.save();
         context.font = this.editor.font;
@@ -239,15 +243,24 @@ util.mixin(exports.TextView.prototype, {
                 var end = colorRange != null ? colorRange.end : endCol;
                 var tag = colorRange != null ? colorRange.tag : 'plain';
 
-                var color = themeHighlighter.hasOwnProperty(tag)
-                            ? themeHighlighter[tag]
-                            : 'red';
-                context.fillStyle = color;
-
                 var pos = { row: row, col: col };
                 var rect = layoutManager.characterRectForPosition(pos);
 
+                if (bgColors.hasOwnProperty(tag)) {
+                    var endPos = { row: row, col: end - 1 };
+                    var endRect = layoutManager.
+                        characterRectForPosition(endPos);
+
+                    var bg = bgColors[tag];
+                    context.fillStyle = bg;
+                    context.fillRect(rect.x, rect.y, endRect.x - rect.x +
+                        endRect.width, endRect.height);
+                }
+
+                var fg = fgColors.hasOwnProperty(tag) ? fgColors[tag] : 'red';
+
                 var snippet = characters.substring(col, end);
+                context.fillStyle = fg;
                 context.fillText(snippet, rect.x, rect.y + lineAscent);
 
                 if (DEBUG_TEXT_RANGES) {
@@ -455,6 +468,14 @@ util.mixin(exports.TextView.prototype, {
     },
 
     /**
+     * Handles click events and sets the focus appropriately. This is needed
+     * now that Firefox focus is tightened down; see bugs 125282 and 588381.
+     */
+    click: function(event) {
+        this.focus();
+    },
+
+    /**
      * This is where the editor is painted from head to toe. Pitiful tricks are
      * used to draw as little as possible.
      */
@@ -614,8 +635,6 @@ util.mixin(exports.TextView.prototype, {
     },
 
     mouseDown: function(evt) {
-        util.stopEvent(evt);
-
         this.hasFocus = true;
         this._mouseIsDown = true;
 

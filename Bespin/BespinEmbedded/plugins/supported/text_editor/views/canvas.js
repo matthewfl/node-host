@@ -43,9 +43,7 @@ var Event = require('events').Event;
  * @class
  *
  * This class provides support for manual scrolling and positioning for canvas-
- * based elements. Getting these elements to play nicely with SproutCore is
- * tricky and error-prone, so all canvas-based views should consider deriving
- * from this class. Derived views should implement drawRect() in order to
+ * based elements. Derived views should implement drawRect() in order to
  * perform the appropriate canvas drawing logic.
  *
  * The actual size of the canvas is always the size of the container the canvas
@@ -127,7 +125,9 @@ exports.CanvasView.prototype = {
         this.invalidate();
     },
 
-    drawRect: function(rect, context) { },
+    drawRect: function(rect, context) {
+        // abstract
+    },
 
     /**
      * Render the canvas. Rendering is delayed by a few ms to empty the call
@@ -314,3 +314,4 @@ Object.defineProperties(exports.CanvasView.prototype, {
         }
     }
 });
+

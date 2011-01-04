@@ -549,7 +549,9 @@ exports.none = function(obj) {
  * (which are not actually cloned because they are immutable).
  * If the passed object implements the clone() method, then this function
  * will simply call that method and return the result.
+ *
  * @param object {Object} the object to clone
+ * @param deep {Boolean} do a deep clone?
  * @returns {Object} the cloned object
  */
 exports.clone = function(object, deep) {
@@ -574,7 +576,7 @@ exports.clone = function(object, deep) {
         return reply;
     }
 
-    if (object.clone && typeof(object.clone) === 'function') {
+    if (object && typeof(object.clone) === 'function') {
         return object.clone();
     }
 

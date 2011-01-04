@@ -37,6 +37,7 @@
 
 var Trace = require('bespin:util/stacktrace').Trace;
 var catalog = require('bespin:plugins').catalog;
+var console = require('bespin:console').console;
 
 /**
  * Current requirements are around displaying the command line, and provision

@@ -40,6 +40,7 @@ var Event = require('events').Event;
 var WorkerSupervisor = require('worker_manager').WorkerSupervisor;
 var console = require('bespin:console').console;
 var rangeutils = require('rangeutils:utils/range');
+var settings = require('settings').settings;
 var syntaxDirectory = require('syntax_directory').syntaxDirectory;
 
 // The number of lines to highlight at once.
@@ -166,7 +167,13 @@ Context.prototype = {
     },
 
     _workerStarted: function() {
+        this._syntaxInfo.settings.forEach(function(name) {
+            var value = settings.get(name);
+            this._worker.send('setSyntaxSetting', [ name, value ]);
+        }, this);
+
         this._worker.send('loadSyntax', [ this._syntaxInfo.name ]);
+
         if (this._active) {
             this._annotate();
         }

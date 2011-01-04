@@ -1743,7 +1743,7 @@ Loader.prototype._ensurePackage = function(packageId, vers, workingPackage, seen
   @returns {String}
 */
 Loader.prototype._canonicalPackageId = function(packageId, vers, workingPackage) {
-
+  
   // fast paths
   if (packageId instanceof Package) return packageId.id;
   if (isCanonicalId(packageId)) return packageId;
@@ -1753,7 +1753,6 @@ Loader.prototype._canonicalPackageId = function(packageId, vers, workingPackage)
   
   var cache = this.canonicalPackageIds,
       cacheId, sources, ret, idx, len, source;
-
   // use anonymousPackage if no workingPackage is provided
   if (!workingPackage) workingPackage = this.anonymousPackage;
   if (!workingPackage) throw new Error('working package is required');
@@ -3300,6 +3299,480 @@ tiki.replay(); // replay queue
 bespin.tiki = tiki;
 })();
 
+;bespin.tiki.register("::types", {
+    name: "types",
+    dependencies: {  }
+});
+bespin.tiki.module("types:basic",function(require,exports,module) {
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Bespin.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bespin Team (bespin@mozilla.com)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+var catalog = require('bespin:plugins').catalog;
+var console = require('bespin:console').console;
+var Promise = require('bespin:promise').Promise;
+
+var r = require;
+
+/**
+ * These are the basic types that we accept. They are vaguely based on the
+ * Jetpack settings system (https://wiki.mozilla.org/Labs/Jetpack/JEP/24)
+ * although clearly more restricted.
+ * <p>In addition to these types, Jetpack also accepts range, member, password
+ * that we are thinking of adding in the short term.
+ */
+
+/**
+ * 'text' is the default if no type is given.
+ */
+exports.text = {
+    isValid: function(value, typeExt) {
+        return typeof value == 'string';
+    },
+
+    toString: function(value, typeExt) {
+        return value;
+    },
+
+    fromString: function(value, typeExt) {
+        return value;
+    }
+};
+
+/**
+ * We don't currently plan to distinguish between integers and floats
+ */
+exports.number = {
+    isValid: function(value, typeExt) {
+        if (isNaN(value)) {
+            return false;
+        }
+        if (value === null) {
+            return false;
+        }
+        if (value === undefined) {
+            return false;
+        }
+        if (value === Infinity) {
+            return false;
+        }
+        return typeof value == 'number';// && !isNaN(value);
+    },
+
+    toString: function(value, typeExt) {
+        if (!value) {
+            return null;
+        }
+        return '' + value;
+    },
+
+    fromString: function(value, typeExt) {
+        if (!value) {
+            return null;
+        }
+        var reply = parseInt(value, 10);
+        if (isNaN(reply)) {
+            throw new Error('Can\'t convert "' + value + '" to a number.');
+        }
+        return reply;
+    }
+};
+
+/**
+ * true/false values
+ */
+exports.bool = {
+    isValid: function(value, typeExt) {
+        return typeof value == 'boolean';
+    },
+
+    toString: function(value, typeExt) {
+        return '' + value;
+    },
+
+    fromString: function(value, typeExt) {
+        if (value === null) {
+            return null;
+        }
+
+        if (!value.toLowerCase) {
+            return !!value;
+        }
+
+        var lower = value.toLowerCase();
+        if (lower == 'true') {
+            return true;
+        } else if (lower == 'false') {
+            return false;
+        }
+
+        return !!value;
+    }
+};
+
+/**
+ * A JSON object
+ * TODO: Check to see how this works out.
+ */
+exports.object = {
+    isValid: function(value, typeExt) {
+        return typeof value == 'object';
+    },
+
+    toString: function(value, typeExt) {
+        return JSON.stringify(value);
+    },
+
+    fromString: function(value, typeExt) {
+        return JSON.parse(value);
+    }
+};
+
+/**
+ * One of a known set of options
+ */
+exports.selection = {
+    isValid: function(value, typeExt) {
+        if (typeof value != 'string') {
+            return false;
+        }
+
+        if (!typeExt.data) {
+            console.error('Missing data on selection type extension. Skipping');
+            return true;
+        }
+
+        var match = false;
+        typeExt.data.forEach(function(option) {
+            if (value == option) {
+                match = true;
+            }
+        });
+
+        return match;
+    },
+
+    toString: function(value, typeExt) {
+        return value;
+    },
+
+    fromString: function(value, typeExt) {
+        // TODO: should we validate and return null if invalid?
+        return value;
+    },
+
+    resolveTypeSpec: function(extension, typeSpec) {
+        var promise = new Promise();
+
+        if (typeSpec.data) {
+            // If we've got the data already - just use it
+            extension.data = typeSpec.data;
+            promise.resolve();
+        } else if (typeSpec.pointer) {
+            catalog.loadObjectForPropertyPath(typeSpec.pointer).then(function(obj) {
+                var reply = obj(typeSpec);
+                if (typeof reply.then === 'function') {
+                    reply.then(function(data) {
+                        extension.data = data;
+                        promise.resolve();
+                    });
+                } else {
+                    extension.data = reply;
+                    promise.resolve();
+                }
+            }, function(ex) {
+                promise.reject(ex);
+            });
+        } else {
+            // No extra data available
+            console.warn('Missing data/pointer for selection', typeSpec);
+            promise.resolve();
+        }
+
+        return promise;
+    }
+};
+
+});
+
+bespin.tiki.module("types:types",function(require,exports,module) {
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Bespin.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bespin Team (bespin@mozilla.com)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+var catalog = require('bespin:plugins').catalog;
+var console = require('bespin:console').console;
+var Promise = require('bespin:promise').Promise;
+
+/**
+ * Get the simple text-only, no-param version of a typeSpec.
+ */
+exports.getSimpleName = function(typeSpec) {
+    if (!typeSpec) {
+        throw new Error('null|undefined is not a valid typeSpec');
+    }
+
+    if (typeof typeSpec == 'string') {
+        return typeSpec;
+    }
+
+    if (typeof typeSpec == 'object') {
+        if (!typeSpec.name) {
+            throw new Error('Missing name member to typeSpec');
+        }
+
+        return typeSpec.name;
+    }
+
+    throw new Error('Not a typeSpec: ' + typeSpec);
+};
+
+/**
+ * 2 typeSpecs are considered equal if their simple names are the same.
+ */
+exports.equals = function(typeSpec1, typeSpec2) {
+    return exports.getSimpleName(typeSpec1) == exports.getSimpleName(typeSpec2);
+};
+
+/**
+ * A deferred type is one where we hope to find out what the type is just
+ * in time to use it. For example the 'set' command where the type of the 2nd
+ * param is defined by the 1st param.
+ * @param typeSpec An object type spec with name = 'deferred' and a pointer
+ * which to call through catalog.loadObjectForPropertyPath (passing in the
+ * original typeSpec as a parameter). This function is expected to return either
+ * a new typeSpec, or a promise of a typeSpec.
+ * @returns A promise which resolves to the new type spec from the pointer.
+ */
+exports.undeferTypeSpec = function(typeSpec) {
+    // Deferred types are specified by the return from the pointer
+    // function.
+    var promise = new Promise();
+    if (!typeSpec.pointer) {
+        promise.reject(new Error('Missing deferred pointer'));
+        return promise;
+    }
+
+    catalog.loadObjectForPropertyPath(typeSpec.pointer).then(function(obj) {
+        var reply = obj(typeSpec);
+        if (typeof reply.then === 'function') {
+            reply.then(function(newTypeSpec) {
+                promise.resolve(newTypeSpec);
+            }, function(ex) {
+                promise.reject(ex);
+            });
+        } else {
+            promise.resolve(reply);
+        }
+    }, function(ex) {
+        promise.reject(ex);
+    });
+
+    return promise;
+};
+
+// Warning: These next 2 functions are virtually cut and paste from
+// command_line:typehint.js
+// If you change this, there are probably parallel changes to be made there
+// There are 2 differences between the functions:
+// - We lookup type|typehint in the catalog
+// - There is a concept of a default typehint, where there is no similar
+//   thing for types. This is sensible, because hints are optional nice
+//   to have things. Not so for types.
+// Whilst we could abstract out the changes, I'm not sure this simplifies
+// already complex code
+
+/**
+ * Given a string, look up the type extension in the catalog
+ * @param name The type name. Object type specs are not allowed
+ * @returns A promise that resolves to a type extension
+ */
+function resolveObjectType(typeSpec) {
+    var promise = new Promise();
+    var ext = catalog.getExtensionByKey('type', typeSpec.name);
+    if (ext) {
+        promise.resolve({ ext: ext, typeSpec: typeSpec });
+    } else {
+        promise.reject(new Error('Unknown type: ' + typeSpec.name));
+    }
+    return promise;
+};
+
+/**
+ * Look-up a typeSpec and find a corresponding type extension. This function
+ * does not attempt to load the type or go through the resolution process,
+ * for that you probably want #resolveType()
+ * @param typeSpec A string containing the type name or an object with a name
+ * and other type parameters e.g. { name: 'selection', data: [ 'one', 'two' ] }
+ * @return a promise that resolves to an object containing the resolved type
+ * extension and the typeSpec used to resolve the type (which could be different
+ * from the passed typeSpec if this was deferred). The object will be in the
+ * form { ext:... typeSpec:... }
+ */
+function resolveTypeExt(typeSpec) {
+    if (typeof typeSpec === 'string') {
+        return resolveObjectType({ name: typeSpec });
+    }
+
+    if (typeof typeSpec === 'object') {
+        if (typeSpec.name === 'deferred') {
+            var promise = new Promise();
+            exports.undeferTypeSpec(typeSpec).then(function(newTypeSpec) {
+                resolveTypeExt(newTypeSpec).then(function(reply) {
+                    promise.resolve(reply);
+                }, function(ex) {
+                    promise.reject(ex);
+                });
+            });
+            return promise;
+        } else {
+            return resolveObjectType(typeSpec);
+        }
+    }
+
+    throw new Error('Unknown typeSpec type: ' + typeof typeSpec);
+};
+
+/**
+ * Do all the nastiness of: converting the typeSpec to an extension, then
+ * asynchronously loading the extension to a type and then calling
+ * resolveTypeSpec if the loaded type defines it.
+ * @param typeSpec a string or object defining the type to resolve
+ * @returns a promise which resolves to an object containing the type and type
+ * extension as follows: { type:... ext:... }
+ * @see #resolveTypeExt
+ */
+exports.resolveType = function(typeSpec) {
+    var promise = new Promise();
+
+    resolveTypeExt(typeSpec).then(function(data) {
+        data.ext.load(function(type) {
+            // We might need to resolve the typeSpec in a custom way
+            if (typeof type.resolveTypeSpec === 'function') {
+                type.resolveTypeSpec(data.ext, data.typeSpec).then(function() {
+                    promise.resolve({ type: type, ext: data.ext });
+                }, function(ex) {
+                    promise.reject(ex);
+                });
+            } else {
+                // Nothing to resolve - just go
+                promise.resolve({ type: type, ext: data.ext });
+            }
+        });
+    }, function(ex) {
+        promise.reject(ex);
+    });
+
+    return promise;
+};
+
+/**
+ * Convert some data from a string to another type as specified by
+ * <tt>typeSpec</tt>.
+ */
+exports.fromString = function(stringVersion, typeSpec) {
+    var promise = new Promise();
+    exports.resolveType(typeSpec).then(function(typeData) {
+        promise.resolve(typeData.type.fromString(stringVersion, typeData.ext));
+    });
+    return promise;
+};
+
+/**
+ * Convert some data from an original type to a string as specified by
+ * <tt>typeSpec</tt>.
+ */
+exports.toString = function(objectVersion, typeSpec) {
+    var promise = new Promise();
+    exports.resolveType(typeSpec).then(function(typeData) {
+        promise.resolve(typeData.type.toString(objectVersion, typeData.ext));
+    });
+    return promise;
+};
+
+/**
+ * Convert some data from an original type to a string as specified by
+ * <tt>typeSpec</tt>.
+ */
+exports.isValid = function(originalVersion, typeSpec) {
+    var promise = new Promise();
+    exports.resolveType(typeSpec).then(function(typeData) {
+        promise.resolve(typeData.type.isValid(originalVersion, typeData.ext));
+    });
+    return promise;
+};
+
+});
+
+bespin.tiki.module("types:index",function(require,exports,module) {
+
+});
 ;bespin.tiki.register("::bespin", {
     name: "bespin",
     dependencies: {  }
@@ -3522,7 +3995,7 @@ if (typeof(window) === 'undefined') {
     // For each of the console functions, copy them if they exist, stub if not
     NAMES.forEach(function(name) {
         if (window.console && window.console[name]) {
-            exports.console[name] = window.console[name];
+            exports.console[name] = window.console[name].bind(window.console);
         } else {
             exports.console[name] = noop;
         }
@@ -3723,7 +4196,7 @@ bespin.tiki.module("bespin:index",function(require,exports,module) {
 
 // BEGIN VERSION BLOCK
 /** The core version of the Bespin system */
-exports.versionNumber = '0.9a1';
+exports.versionNumber = '0.9a2';
 
 /** The version number to display to users */
 exports.versionCodename = 'Edison';
@@ -5517,7 +5990,6 @@ exports.Promise.prototype._complete = function(list, status, data, name) {
     return this;
 };
 
-
 /**
  * Takes an array of promises and returns a promise that that is fulfilled once
  * all the promises in the array are fulfilled
@@ -5558,6 +6030,26 @@ exports.group = function(promiseList) {
     });
 
     return groupPromise;
+};
+
+/**
+ * Take an asynchronous function (i.e. one that returns a promise) and
+ * return a synchronous version of the same function.
+ * Clearly this is impossible without blocking or busy waiting (both evil).
+ * In this case we make the assumption that the called function is only
+ * theoretically asynchronous (which is actually common with Bespin, because the
+ * most common cause of asynchronaity is the lazy loading module system which
+ * can sometimes be proved to be synchronous in use, even though in theory
+ * there is the potential for asynch behaviour)
+ */
+exports.synchronizer = function(func, scope) {
+    return function() {
+        var promise = func.apply(scope, arguments);
+        if (!promise.isComplete()) {
+            throw new Error('asynchronous function can\'t be synchronized');
+        }
+        return promise._value;
+    };
 };
 
 });
@@ -6860,7 +7352,9 @@ exports.none = function(obj) {
  * (which are not actually cloned because they are immutable).
  * If the passed object implements the clone() method, then this function
  * will simply call that method and return the result.
+ *
  * @param object {Object} the object to clone
+ * @param deep {Boolean} do a deep clone?
  * @returns {Object} the cloned object
  */
 exports.clone = function(object, deep) {
@@ -6885,7 +7379,7 @@ exports.clone = function(object, deep) {
         return reply;
     }
 
-    if (object.clone && typeof(object.clone) === 'function') {
+    if (object && typeof(object.clone) === 'function') {
         return object.clone();
     }
 
@@ -7027,6 +7521,7 @@ function SyntaxInfo(ext) {
     this.extension = ext;
     this.name = ext.name;
     this.fileExts = ext.hasOwnProperty('fileexts') ? ext.fileexts : [];
+    this.settings = ext.settings != null ? ext.settings : [];
 }
 
 /**
@@ -7780,8 +8275,619 @@ bespin.tiki.module("underscore:index",function(require,exports,module) {
 
 exports._.noConflict();
 });
+;bespin.tiki.register("::settings", {
+    name: "settings",
+    dependencies: { "types": "0.0.0" }
+});
+bespin.tiki.module("settings:commands",function(require,exports,module) {
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Bespin.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bespin Team (bespin@mozilla.com)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-bespin.tiki.require("bespin:plugins").catalog.registerMetadata({"bespin": {"testmodules": [], "resourceURL": "resources/bespin/", "name": "bespin", "environments": {"main": true, "worker": true}, "type": "plugins/boot"}, "syntax_directory": {"resourceURL": "resources/syntax_directory/", "name": "syntax_directory", "environments": {"main": true, "worker": true}, "dependencies": {}, "testmodules": [], "provides": [{"register": "#discoveredNewSyntax", "ep": "extensionhandler", "name": "syntax"}], "type": "plugins/supported", "description": "Catalogs the available syntax engines"}, "underscore": {"testmodules": [], "type": "plugins/thirdparty", "resourceURL": "resources/underscore/", "description": "Functional Programming Aid for Javascript. Works well with jQuery.", "name": "underscore"}});
+var catalog = require('bespin:plugins').catalog;
+var env = require('environment').env;
+
+var settings = require('settings').settings;
+
+/**
+ * 'set' command
+ */
+exports.setCommand = function(args, request) {
+    var html;
+
+    if (!args.setting) {
+        var settingsList = settings._list();
+        html = '';
+        // first sort the settingsList based on the key
+        settingsList.sort(function(a, b) {
+            if (a.key < b.key) {
+                return -1;
+            } else if (a.key == b.key) {
+                return 0;
+            } else {
+                return 1;
+            }
+        });
+
+        settingsList.forEach(function(setting) {
+            html += '<a class="setting" href="https://wiki.mozilla.org/Labs/Bespin/Settings#' +
+                    setting.key +
+                    '" title="View external documentation on setting: ' +
+                    setting.key +
+                    '" target="_blank">' +
+                    setting.key +
+                    '</a> = ' +
+                    setting.value +
+                    '<br/>';
+        });
+    } else {
+        if (args.value === undefined) {
+            html = '<strong>' + args.setting + '</strong> = ' + settings.get(args.setting);
+        } else {
+            html = 'Setting: <strong>' + args.setting + '</strong> = ' + args.value;
+            settings.set(args.setting, args.value);
+        }
+    }
+
+    request.done(html);
+};
+
+/**
+ * 'unset' command
+ */
+exports.unsetCommand = function(args, request) {
+    settings.resetValue(args.setting);
+    request.done('Reset ' + args.setting + ' to default: ' + settings.get(args.setting));
+};
+
+});
+
+bespin.tiki.module("settings:cookie",function(require,exports,module) {
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Bespin.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bespin Team (bespin@mozilla.com)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+var cookie = require('bespin:util/cookie');
+
+/**
+ * Save the settings in a cookie
+ * This code has not been tested since reboot
+ * @constructor
+ */
+exports.CookiePersister = function() {
+};
+
+exports.CookiePersister.prototype = {
+    loadInitialValues: function(settings) {
+        settings._loadDefaultValues().then(function() {
+            var data = cookie.get('settings');
+            settings._loadFromObject(JSON.parse(data));
+        }.bind(this));
+    },
+
+    persistValue: function(settings, key, value) {
+        try {
+            // Aggregate the settings into a file
+            var data = {};
+            settings._getSettingNames().forEach(function(key) {
+                data[key] = settings.get(key);
+            });
+
+            var stringData = JSON.stringify(data);
+            cookie.set('settings', stringData);
+        } catch (ex) {
+            console.error('Unable to JSONify the settings! ' + ex);
+            return;
+        }
+    }
+};
+
+});
+
+bespin.tiki.module("settings:index",function(require,exports,module) {
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Bespin.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bespin Team (bespin@mozilla.com)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+/**
+ * This plug-in manages settings.
+ *
+ * <p>Some quick terminology: A _Choice_, is something that the application
+ * offers as a way to customize how it works. For each _Choice_ there will be
+ * a number of _Options_ but ultimately the user will have a _Setting_ for each
+ * _Choice_. This _Setting_ maybe the default for that _Choice_.
+ *
+ * <p>It provides an API for controlling the known settings. This allows us to
+ * provide better GUI/CLI support. See setting.js
+ * <p>It provides 3 implementations of a setting store:<ul>
+ * <li>MemorySettings: i.e. temporary, non-persistent. Useful in textarea
+ * replacement type scenarios. See memory.js
+ * <li>CookieSettings: Stores the data in a cookie. Generally not practical as
+ * it slows client server communication (if any). See cookie.js
+ * <li>ServerSettings: Stores data on a server using the <tt>server</tt> API.
+ * See server.js
+ * </ul>
+ * <p>It is expected that an HTML5 storage option will be developed soon. This
+ * plug-in did contain a prototype Gears implementation, however this was never
+ * maintained, and has been deleted due to bit-rot.
+ * <p>This plug-in also provides commands to manipulate the settings from the
+ * command_line and canon plug-ins.
+ *
+ * <p>TODO:<ul>
+ * <li>Check what happens when we alter settings from the UI
+ * <li>Ensure that values can be bound in a SC sense
+ * <li>Convert all subscriptions to bindings.
+ * <li>Implement HTML5 storage option
+ * <li>Make all settings have a 'description' member and use that in set|unset
+ * commands.
+ * <li>When the command system is re-worked to include more GUI interaction,
+ * expose data in settings to that system.
+ * </ul>
+ *
+ * <p>For future versions of the API it might be better to decrease the
+ * dependency on settings, and increase it on the system with a setting.
+ * e.g. Now:
+ * <pre>
+ * setting.addSetting({ name:'foo', ... });
+ * settings.set('foo', 'bar');
+ * </pre>
+ * <p>Vs the potentially better:
+ * <pre>
+ * var foo = setting.addSetting({ name:'foo', ... });
+ * foo.value = 'bar';
+ * </pre>
+ * <p>Comparison:
+ * <ul>
+ * <li>The latter version gains by forcing access to the setting to be through
+ * the plug-in providing it, so there wouldn't be any hidden dependencies.
+ * <li>It's also more compact.
+ * <li>It could provide access to to other methods e.g. <tt>foo.reset()</tt>
+ * and <tt>foo.onChange(function(val) {...});</tt> (but see SC binding)
+ * <li>On the other hand dependencies are so spread out right now that it's
+ * probably hard to do this easily. We should move to this in the future.
+ * </ul>
+ */
+
+var catalog = require('bespin:plugins').catalog;
+var console = require('bespin:console').console;
+var Promise = require('bespin:promise').Promise;
+var groupPromises = require('bespin:promise').group;
+
+var types = require('types:types');
+
+/**
+ * Find and configure the settings object.
+ * @see MemorySettings.addSetting()
+ */
+exports.addSetting = function(settingExt) {
+    require('settings').settings.addSetting(settingExt);
+};
+
+/**
+ * Fetch an array of the currently known settings
+ */
+exports.getSettings = function() {
+    return catalog.getExtensions('setting');
+};
+
+/**
+ * Something of a hack to allow the set command to give a clearer definition
+ * of the type to the command line.
+ */
+exports.getTypeSpecFromAssignment = function(typeSpec) {
+    var assignments = typeSpec.assignments;
+    var replacement = 'text';
+
+    if (assignments) {
+        // Find the assignment for 'setting' so we can get it's value
+        var settingAssignment = null;
+        assignments.forEach(function(assignment) {
+            if (assignment.param.name === 'setting') {
+                settingAssignment = assignment;
+            }
+        });
+
+        if (settingAssignment) {
+            var settingName = settingAssignment.value;
+            if (settingName && settingName !== '') {
+                var settingExt = catalog.getExtensionByKey('setting', settingName);
+                if (settingExt) {
+                    replacement = settingExt.type;
+                }
+            }
+        }
+    }
+
+    return replacement;
+};
+
+/**
+ * A base class for all the various methods of storing settings.
+ * <p>Usage:
+ * <pre>
+ * // Create manually, or require 'settings' from the container.
+ * // This is the manual version:
+ * var settings = require('bespin:plugins').catalog.getObject('settings');
+ * // Add a new setting
+ * settings.addSetting({ name:'foo', ... });
+ * // Display the default value
+ * alert(settings.get('foo'));
+ * // Alter the value, which also publishes the change etc.
+ * settings.set('foo', 'bar');
+ * // Reset the value to the default
+ * settings.resetValue('foo');
+ * </pre>
+ * @class
+ */
+exports.MemorySettings = function() {
+};
+
+exports.MemorySettings.prototype = {
+    /**
+     * Storage for the setting values
+     */
+    _values: {},
+
+    /**
+     * Storage for deactivated values
+     */
+    _deactivated: {},
+
+    /**
+     * A Persister is able to store settings. It is an object that defines
+     * two functions:
+     * loadInitialValues(settings) and persistValue(settings, key, value).
+     */
+    setPersister: function(persister) {
+        this._persister = persister;
+        if (persister) {
+            persister.loadInitialValues(this);
+        }
+    },
+
+    /**
+     * Read accessor
+     */
+    get: function(key) {
+        return this._values[key];
+    },
+
+    /**
+     * Override observable.set(key, value) to provide type conversion and
+     * validation.
+     */
+    set: function(key, value) {
+        var settingExt = catalog.getExtensionByKey('setting', key);
+        if (!settingExt) {
+            // If there is no definition for this setting, then warn the user
+            // and store the setting in raw format. If the setting gets defined,
+            // the addSetting() function is called which then takes up the
+            // here stored setting and calls set() to convert the setting.
+            console.warn('Setting not defined: ', key, value);
+            this._deactivated[key] = value;
+        }
+        else if (typeof value == 'string' && settingExt.type == 'string') {
+            // no conversion needed
+            this._values[key] = value;
+        }
+        else {
+            var inline = false;
+
+            types.fromString(value, settingExt.type).then(function(converted) {
+                inline = true;
+                this._values[key] = converted;
+
+                // Inform subscriptions of the change
+                catalog.publish(this, 'settingChange', key, converted);
+            }.bind(this), function(ex) {
+                console.error('Error setting', key, ': ', ex);
+            });
+
+            if (!inline) {
+                console.warn('About to set string version of ', key, 'delaying typed set.');
+                this._values[key] = value;
+            }
+        }
+
+        this._persistValue(key, value);
+        return this;
+    },
+
+    /**
+     * Function to add to the list of available settings.
+     * <p>Example usage:
+     * <pre>
+     * var settings = require('bespin:plugins').catalog.getObject('settings');
+     * settings.addSetting({
+     *     name: 'tabsize', // For use in settings.get('X')
+     *     type: 'number',  // To allow value checking.
+     *     defaultValue: 4  // Default value for use when none is directly set
+     * });
+     * </pre>
+     * @param {object} settingExt Object containing name/type/defaultValue members.
+     */
+    addSetting: function(settingExt) {
+        if (!settingExt.name) {
+            console.error('Setting.name == undefined. Ignoring.', settingExt);
+            return;
+        }
+
+        if (!settingExt.defaultValue === undefined) {
+            console.error('Setting.defaultValue == undefined', settingExt);
+        }
+
+        types.isValid(settingExt.defaultValue, settingExt.type).then(function(valid) {
+            if (!valid) {
+                console.warn('!Setting.isValid(Setting.defaultValue)', settingExt);
+            }
+
+            // The value can be
+            // 1) the value of a setting that is not activated at the moment
+            //       OR
+            // 2) the defaultValue of the setting.
+            var value = this._deactivated[settingExt.name] ||
+                    settingExt.defaultValue;
+
+            // Set the default value up.
+            this.set(settingExt.name, value);
+        }.bind(this), function(ex) {
+            console.error('Type error ', ex, ' ignoring setting ', settingExt);
+        });
+    },
+
+    /**
+     * Reset the value of the <code>key</code> setting to it's default
+     */
+    resetValue: function(key) {
+        var settingExt = catalog.getExtensionByKey('setting', key);
+        if (settingExt) {
+            this.set(key, settingExt.defaultValue);
+        } else {
+            console.log('ignore resetValue on ', key);
+        }
+    },
+
+    resetAll: function() {
+        this._getSettingNames().forEach(function(key) {
+            this.resetValue(key);
+        }.bind(this));
+    },
+
+    /**
+     * Make a list of the valid type names
+     */
+    _getSettingNames: function() {
+        var typeNames = [];
+        catalog.getExtensions('setting').forEach(function(settingExt) {
+            typeNames.push(settingExt.name);
+        });
+        return typeNames;
+    },
+
+    /**
+     * Retrieve a list of the known settings and their values
+     */
+    _list: function() {
+        var reply = [];
+        this._getSettingNames().forEach(function(setting) {
+            reply.push({
+                'key': setting,
+                'value': this.get(setting)
+            });
+        }.bind(this));
+        return reply;
+    },
+
+    /**
+     * delegates to the persister. no-op if there's no persister.
+     */
+    _persistValue: function(key, value) {
+        var persister = this._persister;
+        if (persister) {
+            persister.persistValue(this, key, value);
+        }
+    },
+
+    /**
+     * Delegates to the persister, otherwise sets up the defaults if no
+     * persister is available.
+     */
+    _loadInitialValues: function() {
+        var persister = this._persister;
+        if (persister) {
+            persister.loadInitialValues(this);
+        } else {
+            this._loadDefaultValues();
+        }
+    },
+
+    /**
+     * Prime the local cache with the defaults.
+     */
+    _loadDefaultValues: function() {
+        return this._loadFromObject(this._defaultValues());
+    },
+
+    /**
+     * Utility to load settings from an object
+     */
+    _loadFromObject: function(data) {
+        var promises = [];
+        // take the promise action out of the loop to avoid closure problems
+        var setterFactory = function(keyName) {
+            return function(value) {
+                this.set(keyName, value);
+            };
+        };
+
+        for (var key in data) {
+            if (data.hasOwnProperty(key)) {
+                var valueStr = data[key];
+                var settingExt = catalog.getExtensionByKey('setting', key);
+                if (settingExt) {
+                    // TODO: We shouldn't just ignore values without a setting
+                    var promise = types.fromString(valueStr, settingExt.type);
+                    var setter = setterFactory(key);
+                    promise.then(setter);
+                    promises.push(promise);
+                }
+            }
+        }
+
+        // Promise.group (a.k.a groupPromises) gives you a list of all the data
+        // in the grouped promises. We don't want that in case we change how
+        // this works with ignored settings (see above).
+        // So we do this to hide the list of promise resolutions.
+        var replyPromise = new Promise();
+        groupPromises(promises).then(function() {
+            replyPromise.resolve();
+        });
+        return replyPromise;
+    },
+
+    /**
+     * Utility to grab all the settings and export them into an object
+     */
+    _saveToObject: function() {
+        var promises = [];
+        var reply = {};
+
+        this._getSettingNames().forEach(function(key) {
+            var value = this.get(key);
+            var settingExt = catalog.getExtensionByKey('setting', key);
+            if (settingExt) {
+                // TODO: We shouldn't just ignore values without a setting
+                var promise = types.toString(value, settingExt.type);
+                promise.then(function(value) {
+                    reply[key] = value;
+                });
+                promises.push(promise);
+            }
+        }.bind(this));
+
+        var replyPromise = new Promise();
+        groupPromises(promises).then(function() {
+            replyPromise.resolve(reply);
+        });
+        return replyPromise;
+    },
+
+    /**
+     * The default initial settings
+     */
+    _defaultValues: function() {
+        var defaultValues = {};
+        catalog.getExtensions('setting').forEach(function(settingExt) {
+            defaultValues[settingExt.name] = settingExt.defaultValue;
+        });
+        return defaultValues;
+    }
+};
+
+exports.settings = new exports.MemorySettings();
+
+});
+
+bespin.tiki.require("bespin:plugins").catalog.registerMetadata({"bespin": {"testmodules": [], "resourceURL": "resources/bespin/", "name": "bespin", "environments": {"main": true, "worker": true}, "type": "plugins/boot"}, "underscore": {"testmodules": [], "type": "plugins/thirdparty", "resourceURL": "resources/underscore/", "description": "Functional Programming Aid for Javascript. Works well with jQuery.", "name": "underscore"}, "syntax_directory": {"resourceURL": "resources/syntax_directory/", "name": "syntax_directory", "environments": {"main": true, "worker": true}, "dependencies": {}, "testmodules": [], "provides": [{"register": "#discoveredNewSyntax", "ep": "extensionhandler", "name": "syntax"}], "type": "plugins/supported", "description": "Catalogs the available syntax engines"}, "types": {"resourceURL": "resources/types/", "description": "Defines parameter types for commands", "testmodules": ["tests/testBasic", "tests/testTypes"], "provides": [{"indexOn": "name", "description": "Commands can accept various arguments that the user enters or that are automatically supplied by the environment. Those arguments have types that define how they are supplied or completed. The pointer points to an object with methods convert(str value) and getDefault(). Both functions have `this` set to the command's `takes` parameter. If getDefault is not defined, the default on the command's `takes` is used, if there is one. The object can have a noInput property that is set to true to reflect that this type is provided directly by the system. getDefault must be defined in that case.", "ep": "extensionpoint", "name": "type"}, {"description": "Text that the user needs to enter.", "pointer": "basic#text", "ep": "type", "name": "text"}, {"description": "A JavaScript number", "pointer": "basic#number", "ep": "type", "name": "number"}, {"description": "A true/false value", "pointer": "basic#bool", "ep": "type", "name": "boolean"}, {"description": "An object that converts via JavaScript", "pointer": "basic#object", "ep": "type", "name": "object"}, {"description": "A string that is constrained to be one of a number of pre-defined values", "pointer": "basic#selection", "ep": "type", "name": "selection"}, {"description": "A type which we don't understand from the outset, but which we hope context can help us with", "ep": "type", "name": "deferred"}], "type": "plugins/supported", "name": "types"}, "settings": {"resourceURL": "resources/settings/", "description": "Infrastructure and commands for managing user preferences", "share": true, "dependencies": {"types": "0.0"}, "testmodules": [], "provides": [{"indexOn": "name", "description": "A setting is something that the application offers as a way to customize how it works", "register": "index#addSetting", "ep": "extensionpoint", "name": "setting"}, {"description": "A settingChange is a way to be notified of changes to a setting", "ep": "extensionpoint", "name": "settingChange"}, {"pointer": "commands#setCommand", "description": "define and show settings", "params": [{"defaultValue": null, "type": {"pointer": "settings:index#getSettings", "name": "selection"}, "name": "setting", "description": "The name of the setting to display or alter"}, {"defaultValue": null, "type": {"pointer": "settings:index#getTypeSpecFromAssignment", "name": "deferred"}, "name": "value", "description": "The new value for the chosen setting"}], "ep": "command", "name": "set"}, {"pointer": "commands#unsetCommand", "description": "unset a setting entirely", "params": [{"type": {"pointer": "settings:index#getSettings", "name": "selection"}, "name": "setting", "description": "The name of the setting to return to defaults"}], "ep": "command", "name": "unset"}], "type": "plugins/supported", "name": "settings"}});
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *

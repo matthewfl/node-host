@@ -9,6 +9,11 @@
     "provides":
     [
         {
+            "ep": "extensionpoint",
+            "name": "savehook",
+            "description": "Hooks to be executed on save"
+        },
+        {
             "ep": "command",
             "name": "ls",
             "params":

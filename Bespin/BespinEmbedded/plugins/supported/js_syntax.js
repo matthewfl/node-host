@@ -38,14 +38,22 @@
 "define metadata";
 ({
     "description": "JavaScript syntax highlighter",
-    "dependencies": { "standard_syntax": "0.0.0" },
+    "dependencies": { "settings": "0.0.0", "standard_syntax": "0.0.0" },
     "environments": { "worker": true },
     "provides": [
         {
             "ep": "syntax",
             "name": "js",
             "pointer": "#JSSyntax",
-            "fileexts": [ "js", "json" ]
+            "fileexts": [ "js", "json" ],
+            "settings": [ "specialmodules" ]
+        },
+        {
+            "ep": "setting",
+            "name": "specialmodules",
+            "description": "Regex that matches special modules",
+            "type": "text",
+            "defaultValue": "^jetpack\\.[^\"']+"
         }
     ]
 });
@@ -63,6 +71,11 @@ var states = {
         {
             regex:  /^(?:break|case|catch|continue|default|delete|do|else|false|finally|for|function|if|in|instanceof|let|new|null|return|switch|this|throw|true|try|typeof|var|void|while|with)(?![a-zA-Z0-9_])/,
             tag:    'keyword'
+        },
+        {
+            regex:  /^require/,
+            tag:    'builtin',
+            then:   'require'
         },
         {
             regex:  /^[A-Za-z_][A-Za-z0-9_]*/,
@@ -131,7 +144,44 @@ var states = {
             regex:  /^[*\/]/,
             tag:    'comment'
         }
+    ],
+
+    /* Special handling for "require" */
+
+    require: [
+        {
+            regex:  /^\(["']/,
+            tag:    'plain',
+            then:   'requireBody'
+        },
+        {
+            regex:  /^/,
+            tag:    'plain',
+            then:   'start'
+        }
+    ],
+
+    requireBody: [
+        {
+            regexSetting:   'specialmodules',
+            tag:            'specialmodule',
+            then:           'requireEnd'
+        },
+        {
+            regex:  /^[^"']+/,
+            tag:    'module',
+            then:   'requireEnd'
+        }
+    ],
+
+    requireEnd: [
+        {
+            regex:  /^["']?/,
+            tag:    'plain',
+            then:   'start'
+        }
     ]
 };
 
 exports.JSSyntax = new StandardSyntax(states);
+

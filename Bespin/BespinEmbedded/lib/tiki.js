@@ -1692,7 +1692,7 @@ Loader.prototype._ensurePackage = function(packageId, vers, workingPackage, seen
   @returns {String}
 */
 Loader.prototype._canonicalPackageId = function(packageId, vers, workingPackage) {
-
+  
   // fast paths
   if (packageId instanceof Package) return packageId.id;
   if (isCanonicalId(packageId)) return packageId;
@@ -1702,7 +1702,6 @@ Loader.prototype._canonicalPackageId = function(packageId, vers, workingPackage)
   
   var cache = this.canonicalPackageIds,
       cacheId, sources, ret, idx, len, source;
-
   // use anonymousPackage if no workingPackage is provided
   if (!workingPackage) workingPackage = this.anonymousPackage;
   if (!workingPackage) throw new Error('working package is required');

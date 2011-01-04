@@ -38,9 +38,11 @@
 var catalog = require('bespin:plugins').catalog;
 var pathUtil = require('filesystem:path');
 var env = require('environment').env;
+var promise = require('bespin:promise');
+var _ = require('underscore')._;
 
 var Buffer = require('text_editor:models/buffer').Buffer;
-var Promise = require('bespin:promise').Promise;
+var Promise = promise.Promise;
 
 /*
  * Creates a path based on the current working directory and the passed 'path'.
@@ -123,6 +125,20 @@ exports.mkdirCommand = function(args, request) {
     });
 };
 
+function runSaveHooks(file) {
+    var pr = new Promise();
+    var saveHooks = catalog.getExtensions('savehook');
+    promise.group(_(saveHooks).invoke('load')).then(function(hooks) {
+            var hookOutput = _(hooks).map(function(hook) {
+                return hook(file);
+            });
+            pr.resolve(hookOutput.join("\n"));
+        },
+        function(error) { pr.reject(error); });
+
+    return pr;
+}
+
 /**
  * 'save' command
  */
@@ -134,11 +150,16 @@ exports.saveCommand = function(args, request) {
         return;
     }
 
-    buffer.save().then(function() { request.done('Saved'); },
-        function(error) {
-            request.doneWithError('Unable to save: ' + error.message);
-        }
-    );
+    runSaveHooks(buffer.file).then(function(hookOutput) {
+        buffer.save().then(function() { request.done(hookOutput + "Saved."); },
+            function(error) {
+                var message = "Unable to save: " + error.message;
+                request.doneWithError(hookOutput + message);
+            });
+    }, function(err) {
+        request.doneWithError("Save hooks failed: " + err);
+    });
+
     request.async();
 };
 
@@ -148,12 +169,17 @@ exports.saveCommand = function(args, request) {
 exports.saveAsCommand = function(args, request) {
     var files = env.files;
     var path = exports.getCompletePath(args.path);
-
     var newFile = files.getFile(path);
-    env.buffer.saveAs(newFile).then(function() {
-        request.done('Saved to \'' + path + '\'');
+
+    runSaveHooks(newFile).then(function(hookOutput) {
+        env.buffer.saveAs(newFile).then(function() {
+            request.done(hookOutput + 'Saved to \'' + path + '\'.');
+        }, function(err) {
+            var message = "Save failed: " + err.message;
+            request.doneWithError(hookOutput + message);
+        });
     }, function(err) {
-        request.doneWithError('Save failed (' + err.message + ')');
+        request.doneWithError("Save hooks failed: " + err);
     });
 
     request.async();

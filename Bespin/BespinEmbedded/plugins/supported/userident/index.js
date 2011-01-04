@@ -123,8 +123,12 @@ exports.loginController.prototype = {
                 settings.setPersister(new ServerPersister());
             }, function(error) {
                 if (!error.xhr || error.xhr.status != 404) {
-                    displayError('Register User Plugins',
-                            'Failed to load user\'s pluginInfo.json: ' + error.message);
+                    catalog.getObject('notifier').notify({
+                        plugin: 'userident',
+                        notification: 'loginerror',
+                        body: 'Failed to load your pluginInfo.json metadata ' +
+                            'file: ' + error.message
+                    });
                 }
                 settings.setPersister(new ServerPersister);
             });
@@ -272,7 +276,7 @@ exports.loginController.prototype = {
                             title: 'Reset Password',
                             body: 'The password has to be at least 6 and at most 20 characters.'
                         });
-                    } else if (this.get('password1') !== this.get('password2')) {
+                    } else if (password !== password2) {
                         notifier.notify({
                             plugin: 'userident',
                             notification: 'loginerror',
@@ -281,7 +285,7 @@ exports.loginController.prototype = {
                         });
                     } else {
                         var data = searchQuery.pwchange.split(';');
-                        var usename = data[0];
+                        var username = data[0];
                         var hash = data[1];
 
                         exports.changePassword(
@@ -458,8 +462,11 @@ exports.logout = function() {
         // TODO: Tell appconfig to destroy everything and relunch the app.
         window.location.reload();
     }, function(error) {
-        displayError('Unable to log out',
-            'There was a problem logging out: ' + error.message);
+        catalog.getObject('notifier').notify({
+            plugin: 'userident',
+            notification: 'loginerror',
+            body: 'Unable to log out: ' + error.message
+        });
     });
 };
 

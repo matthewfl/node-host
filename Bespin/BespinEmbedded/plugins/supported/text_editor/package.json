@@ -22,11 +22,6 @@
             "action": "new"
         },
         {
-            "ep": "appcomponent",
-            "name": "editor_view",
-            "pointer": "views/editor#EditorView"
-        },
-        {
             "ep": "command",
             "name": "backspace",
             "key": "backspace",
@@ -440,16 +435,29 @@
         },
         {
             "ep": "themevariable",
-            "name": "highlighter",
+            "name": "highlighterFG",
             "defaultValue": {
-                "plain":      "#e6e6e6",
-                "comment":    "#666666",
-                "directive":  "#999999",
-                "error":      "#ff0000",
-                "identifier": "#D841FF",
-                "keyword":    "#42A8ED",
-                "operator":   "#88BBFF",
-                "string":     "#039A0A"
+                "plain":            "#e6e6e6",
+                "comment":          "#666666",
+                "directive":        "#999999",
+                "error":            "#ff0000",
+                "identifier":       "#D841FF",
+                "keyword":          "#42A8ED",
+                "operator":         "#88BBFF",
+                "string":           "#039A0A",
+                "addition":         "#FFFFFF",
+                "deletion":         "#FFFFFF",
+                "builtin":          "#307BAD",
+                "module":           "#BA4946",
+                "specialmodule":    "#C741BB"
+            }
+        },
+        {
+            "ep": "themevariable",
+            "name": "highlighterBG",
+            "defaultValue": {
+                "addition": "#008000",
+                "deletion": "#800000"
             }
         },
         {
@@ -489,6 +497,17 @@
                     "description": "Function that is called whenever a change happened."
                 }
             ]
+        },
+        {
+            "ep": "extensionpoint",
+            "name": "gutterDecoration",
+            "description": "Decoration for the gutter"
+        },
+        {
+            "ep": "gutterDecoration",
+            "name": "lineNumbers",
+            "description": "Line number decoration for the gutter",
+            "pointer": "views/gutter#lineNumbers"
         }
     ]
 }

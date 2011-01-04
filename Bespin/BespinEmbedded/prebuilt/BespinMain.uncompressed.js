@@ -1862,8 +1862,7 @@ exports.Buffer.prototype = {
      * Saves the contents of this buffer to a new file, and updates the file
      * field of this buffer to point to the result.
      *
-     * @param dir{Directory} The directory to save in.
-     * @param filename{string} The name of the file in the directory.
+     * @param {File} newFile The pathname to save to, as a File object.
      * @return A promise to return the newly-saved file.
      */
     saveAs: function(newFile) {
@@ -2475,9 +2474,7 @@ var Event = require('events').Event;
  * @class
  *
  * This class provides support for manual scrolling and positioning for canvas-
- * based elements. Getting these elements to play nicely with SproutCore is
- * tricky and error-prone, so all canvas-based views should consider deriving
- * from this class. Derived views should implement drawRect() in order to
+ * based elements. Derived views should implement drawRect() in order to
  * perform the appropriate canvas drawing logic.
  *
  * The actual size of the canvas is always the size of the container the canvas
@@ -2559,7 +2556,9 @@ exports.CanvasView.prototype = {
         this.invalidate();
     },
 
-    drawRect: function(rect, context) { },
+    drawRect: function(rect, context) {
+        // abstract
+    },
 
     /**
      * Render the canvas. Rendering is delayed by a few ms to empty the call
@@ -2747,6 +2746,7 @@ Object.defineProperties(exports.CanvasView.prototype, {
     }
 });
 
+
 });
 
 bespin.tiki.module("text_editor:views/editor",function(require,exports,module) {
@@ -2838,7 +2838,8 @@ function computeThemeData(themeManager) {
                 case 'gutter':
                 case 'editor':
                 case 'scroller':
-                case 'highlighter':
+                case 'highlighterFG':
+                case 'highlighterBG':
                     editorThemeData[provides[i].name] = value;
             }
         }
@@ -3557,6 +3558,8 @@ bespin.tiki.module("text_editor:views/gutter",function(require,exports,module) {
  * ***** END LICENSE BLOCK ***** */
 
 var util = require('bespin:util/util');
+var catalog = require('bespin:plugins').catalog;
+var rect = require('utils/rect');
 
 var CanvasView = require('views/canvas').CanvasView;
 
@@ -3570,11 +3573,14 @@ exports.GutterView = function(container, editor) {
     CanvasView.call(this, container, true /* preventDownsize */ );
 
     this.editor = editor;
+    this.domNode.addEventListener('click', this._click.bind(this), false);
 };
 
 exports.GutterView.prototype = new CanvasView();
 
 util.mixin(exports.GutterView.prototype, {
+    _decorationSpacing: 2,
+
     drawRect: function(rect, context) {
         var theme = this.editor.themeData.gutter;
 
@@ -3584,7 +3590,8 @@ util.mixin(exports.GutterView.prototype, {
         context.save();
 
         var paddingLeft = theme.paddingLeft;
-        context.translate(paddingLeft, 0);
+
+        context.translate(paddingLeft - 0.5, -0.5);
 
         var layoutManager = this.editor.layoutManager;
         var range = layoutManager.characterRangeForBoundingRect(rect);
@@ -3592,13 +3599,23 @@ util.mixin(exports.GutterView.prototype, {
             layoutManager.textLines.length - 1);
         var lineAscent = layoutManager.fontDimension.lineAscent;
 
-        context.fillStyle = theme.color;
-        context.font = this.editor.font;
+        var decorations = this._loadedDecorations(true);
+        var decorationWidths = [];
+        for (var i = 0; i < decorations.length; i++) {
+            decorationWidths.push(decorations[i].computeWidth(this));
+        }
 
         for (var row = range.start.row; row <= endRow; row++) {
-            // TODO: breakpoints
-            context.fillText('' + (row + 1), -0.5,
-                layoutManager.lineRectForRow(row).y + lineAscent - 0.5);
+            context.save();
+
+            var rowY = layoutManager.lineRectForRow(row).y;
+            context.translate(0, rowY);
+
+            for (var i = 0; i < decorations.length; i++) {
+                decorations[i].drawDecoration(this, context, lineAscent, row);
+                context.translate(decorationWidths[i] + this._decorationSpacing, 0);
+            }
+            context.restore();
         }
 
         context.restore();
@@ -3606,20 +3623,80 @@ util.mixin(exports.GutterView.prototype, {
 
     computeWidth: function() {
         var theme = this.editor.themeData.gutter;
-        var paddingWidth = theme.paddingLeft + theme.paddingRight;
+        var width = theme.paddingLeft + theme.paddingRight;
 
-        var lineNumberFont = this.editor.font;
+        var decorations = this._loadedDecorations(true);
+        for (var i = 0; i < decorations.length; i++) {
+            width += decorations[i].computeWidth(this);
+        }
 
-        var layoutManager = this.editor.layoutManager;
-        var lineCount = layoutManager.textLines.length;
-        var lineCountStr = '' + lineCount;
+        width += (decorations.length - 1) * this._decorationSpacing;
+        return width;
+    },
 
-        var characterWidth = layoutManager.fontDimension.characterWidth;
-        var strWidth = characterWidth * lineCountStr.length;
+    _click: function(evt) {
+        var point = {x: evt.layerX, y: evt.layerY};
+        if (rect.pointInRect(point, this.frame)) {
+            var deco = this._decorationAtPoint(point);
+            if (deco && ('selected' in deco)) {
+                var computedPoint = this.computeWithClippingFrame(point.x, point.y);
+                var pos = this.editor.layoutManager.characterAtPoint(computedPoint);
+                deco.selected(this, pos.row);
+            }
+        }
+    },
 
-        return strWidth + paddingWidth;
+    _loadedDecorations: function(invalidateOnLoaded) {
+        var decorations = [];
+        var extensions = catalog.getExtensions('gutterDecoration');
+        for (var i = 0; i < extensions.length; i++) {
+            var promise = extensions[i].load();
+            if (promise.isResolved()) {
+                promise.then(decorations.push.bind(decorations));
+            } else if (invalidateOnLoaded) {
+                promise.then(this.invalidate.bind(this));
+            }
+        }
+        return decorations;
+    },
+
+    _decorationAtPoint: function(point) {
+        var theme = this.editor.themeData.gutter;
+        var width = theme.paddingLeft + theme.paddingRight;
+        if (point.x > theme.paddingLeft) {
+            var decorations = this._loadedDecorations(false);
+            var pos = theme.paddingLeft;
+            for (var i = 0; i < decorations.length; i++) {
+                var deco = decorations[i];
+                var w = deco.computeWidth(this);
+                if (point.x < pos + w) {
+                    return deco;
+                }
+                pos += w + this._decorationSpacing;
+            }
+        }
+        return null;
     }
 });
+
+exports.lineNumbers = {
+    drawDecoration: function(gutter, context, lineAscent, row) {
+        var editor = gutter.editor;
+        var theme = editor.themeData.gutter;
+        var layoutManager = editor.layoutManager;
+
+        context.fillStyle = theme.color;
+        context.font = editor.font;
+        context.fillText('' + (row + 1), 0, lineAscent);
+    },
+
+    computeWidth: function(gutter) {
+        var layoutManager = gutter.editor.layoutManager;
+        var lineCountStr = '' + layoutManager.textLines.length;
+        var characterWidth = layoutManager.fontDimension.characterWidth;
+        return characterWidth * lineCountStr.length;
+    }
+};
 
 });
 
@@ -4433,9 +4510,6 @@ exports.TextView = function(container, editor) {
     CanvasView.call(this, container, true /* preventDownsize */ );
     this.editor = editor;
 
-    // Takes the layoutManager of the editor and uses it.
-    var textInput = this.textInput = new TextInput(container, this);
-
     this.padding = {
         top: 0,
         bottom: 30,
@@ -4447,6 +4521,7 @@ exports.TextView = function(container, editor) {
 
     var dom = this.domNode;
     dom.style.cursor = "text";
+    dom.addEventListener('click', this.click.bind(this), false);
     dom.addEventListener('mousedown', this.mouseDown.bind(this), false);
     dom.addEventListener('mousemove', this.mouseMove.bind(this), false);
     window.addEventListener('mouseup', this.mouseUp.bind(this), false);
@@ -4459,6 +4534,8 @@ exports.TextView = function(container, editor) {
     this.endedChangeGroup = new Event();
     this.willReplaceRange = new Event();
     this.replacedCharacters = new Event();
+
+    this.textInput = new TextInput(container, this);
 };
 
 exports.TextView.prototype = new CanvasView();
@@ -4564,10 +4641,14 @@ util.mixin(exports.TextView.prototype, {
     },
 
     _drawLines: function(rect, context) {
-        var layoutManager = this.editor.layoutManager;
+        var editor = this.editor;
+        var layoutManager = editor.layoutManager;
         var textLines = layoutManager.textLines;
         var lineAscent = layoutManager.fontDimension.lineAscent;
-        var themeHighlighter = this.editor.themeData.highlighter
+
+        var themeData = editor.themeData;
+        var fgColors = themeData.highlighterFG;
+        var bgColors = themeData.highlighterBG;
 
         context.save();
         context.font = this.editor.font;
@@ -4616,15 +4697,24 @@ util.mixin(exports.TextView.prototype, {
                 var end = colorRange != null ? colorRange.end : endCol;
                 var tag = colorRange != null ? colorRange.tag : 'plain';
 
-                var color = themeHighlighter.hasOwnProperty(tag)
-                            ? themeHighlighter[tag]
-                            : 'red';
-                context.fillStyle = color;
-
                 var pos = { row: row, col: col };
                 var rect = layoutManager.characterRectForPosition(pos);
 
+                if (bgColors.hasOwnProperty(tag)) {
+                    var endPos = { row: row, col: end - 1 };
+                    var endRect = layoutManager.
+                        characterRectForPosition(endPos);
+
+                    var bg = bgColors[tag];
+                    context.fillStyle = bg;
+                    context.fillRect(rect.x, rect.y, endRect.x - rect.x +
+                        endRect.width, endRect.height);
+                }
+
+                var fg = fgColors.hasOwnProperty(tag) ? fgColors[tag] : 'red';
+
                 var snippet = characters.substring(col, end);
+                context.fillStyle = fg;
                 context.fillText(snippet, rect.x, rect.y + lineAscent);
 
                 if (DEBUG_TEXT_RANGES) {
@@ -4832,6 +4922,14 @@ util.mixin(exports.TextView.prototype, {
     },
 
     /**
+     * Handles click events and sets the focus appropriately. This is needed
+     * now that Firefox focus is tightened down; see bugs 125282 and 588381.
+     */
+    click: function(event) {
+        this.focus();
+    },
+
+    /**
      * This is where the editor is painted from head to toe. Pitiful tricks are
      * used to draw as little as possible.
      */
@@ -4991,8 +5089,6 @@ util.mixin(exports.TextView.prototype, {
     },
 
     mouseDown: function(evt) {
-        util.stopEvent(evt);
-
         this.hasFocus = true;
         this._mouseIsDown = true;
 
@@ -5489,6 +5585,7 @@ bespin.tiki.module("text_editor:views/textinput",function(require,exports,module
 
 var util = require('bespin:util/util');
 var Event = require('events').Event;
+var Range = require('rangeutils:utils/range');
 
 var KeyUtil = require('keyboard:keyutil');
 
@@ -5518,14 +5615,12 @@ var KeyUtil = require('keyboard:keyutil');
 exports.TextInput = function(container, delegate) {
     var domNode = this.domNode = document.createElement('textarea');
     domNode.setAttribute('style', 'position: absolute; z-index: -99999; ' +
-          'width: 0px; height: 0px; margin: 0px; outline: none; border: 0;');
+         'width: 0px; height: 0px; margin: 0px; outline: none; border: 0;');
          // 'z-index: 100; top: 20px; left: 20px; width: 50px; ' +
          // 'height: 50px');
 
     container.appendChild(domNode);
-
     this.delegate = delegate;
-
     this._attachEvents();
 };
 
@@ -5650,20 +5745,11 @@ exports.TextInput.prototype = {
                     getData('text/plain'));
                 evt.preventDefault();
             }, false);
+        // This is Firefox only at the moment.
         } else {
-            var textFieldChangedFn = self._textFieldChanged.bind(self);
-
-            // Same as above, but executes after all pending events. This
-            // ensures that content gets added to the text field before the
-            // value field is read.
-            var textFieldChangedLater = function() {
-                window.setTimeout(textFieldChangedFn, 0);
-            };
-
-            textField.addEventListener('keydown', textFieldChangedLater,
-                false);
-            textField.addEventListener('keypress', textFieldChangedFn, false);
-            textField.addEventListener('keyup', textFieldChangedFn, false);
+            textField.addEventListener('input', function(evt) {
+                self._textFieldChanged();
+            }, false);
 
             textField.addEventListener('compositionstart', function(evt) {
                 self._composing = true;
@@ -5689,6 +5775,30 @@ exports.TextInput.prototype = {
                     self._textFieldChanged();
                 }, 0);
             }, false);
+
+            // Fix for bug 583638.
+            // Copy and cut is only performed on Mozilla as of changest
+            //   http://hg.mozilla.org/mozilla-central/rev/27259a0fcbe6
+            // if some text is selected. The following code ensures that this is
+            // the case. The code hocks to the `selectionChanged` event of the
+            // `delegate` object (which is the textView) and sets and selects
+            // some text if there is a selection in the Bespin Editor. This
+            // 'enables' copy and cut.
+            var wasSelectionBefore = false;
+            this.delegate.selectionChanged.add(function(newRange) {
+                if (Range.isZeroLength(newRange)) {
+                    if (wasSelectionBefore) {
+                        textField.value = "";
+                    }
+                    wasSelection = false;
+                } else {
+                    if (!wasSelectionBefore) {
+                        textField.value = "z";
+                        textField.select();
+                    }
+                    wasSelection = true;
+                }
+            }.bind(this));
         }
 
         // Here comes the code for copy and cut...
@@ -8069,6 +8179,7 @@ bespin.tiki.module("canon:history",function(require,exports,module) {
 
 var Trace = require('bespin:util/stacktrace').Trace;
 var catalog = require('bespin:plugins').catalog;
+var console = require('bespin:console').console;
 
 /**
  * Current requirements are around displaying the command line, and provision
@@ -8314,49 +8425,101 @@ bespin.tiki.module("traits:index",function(require,exports,module) {
 });
 "end";
 
-// --- Begin traits-0.1.js ---
+// --- Begin traits-0.3.js ---
 
-exports.Trait = (function(){
+// Copyright (C) 2010 Google Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// See http://code.google.com/p/es-lab/wiki/Traits
+// for background on traits and a description of this library
+
+var Trait = (function(){
 
   // == Ancillary functions ==
   
-  // this signals that the current ES implementation supports properties,
-  // so probably also accessor properties
-  var SUPPORTS_DEFINEPROP = !!Object.defineProperty;
+  var SUPPORTS_DEFINEPROP = (function() {
+    try {
+      var test = {};
+      Object.defineProperty(test, 'x', {get: function() { return 0; } } );
+      return test.x === 0;
+    } catch(e) {
+      return false;
+    }
+  })();
+  
+  // IE8 implements Object.defineProperty and Object.getOwnPropertyDescriptor
+  // only for DOM objects. These methods don't work on plain objects.
+  // Hence, we need a more elaborate feature-test to see whether the
+  // browser truly supports these methods:
+  function supportsGOPD() {
+    try {
+      if (Object.getOwnPropertyDescriptor) {
+        var test = {x:0};
+        return !!Object.getOwnPropertyDescriptor(test,'x');        
+      }
+    } catch(e) {}
+    return false;
+  };
+  function supportsDP() {
+    try {
+      if (Object.defineProperty) {
+        var test = {};
+        Object.defineProperty(test,'x',{value:0});
+        return test.x === 0;
+      }
+    } catch(e) {}
+    return false;
+  };
 
   var call = Function.prototype.call;
 
   /**
    * An ad hoc version of bind that only binds the 'this' parameter.
    */
-  var bindThis = Function.prototype.bind
-    ? function(fun, self) { return Function.prototype.bind.call(fun, self); }
-    : function(fun, self) {
-        function funcBound(var_args) {
-          return fun.apply(self, arguments);
-        }
-        return funcBound;
-      };
+  var bindThis = Function.prototype.bind ?
+    function(fun, self) { return Function.prototype.bind.call(fun, self); } :
+    function(fun, self) {
+      function funcBound(var_args) {
+        return fun.apply(self, arguments);
+      }
+      return funcBound;
+    };
 
   var hasOwnProperty = bindThis(call, Object.prototype.hasOwnProperty);
   var slice = bindThis(call, Array.prototype.slice);
     
   // feature testing such that traits.js runs on both ES3 and ES5
-  var forEach = Array.prototype.forEach
-      ? bindThis(call, Array.prototype.forEach)
-      : function(arr, fun) {
-          for (var i = 0, len = arr.length; i < len; i++) { fun(arr[i]); }
-        };
-      
-  var freeze = Object.freeze || function(obj) { return obj; };
-  var getPrototypeOf = Object.getPrototypeOf || function(obj) { return Object.prototype };
+  var forEach = Array.prototype.forEach ?
+      bindThis(call, Array.prototype.forEach) :
+      function(arr, fun) {
+        for (var i = 0, len = arr.length; i < len; i++) { fun(arr[i]); }
+      };
+  
+  // on v8 version 2.3.4.1, Object.freeze(obj) returns undefined instead of obj
+  var freeze = (Object.freeze ? function(obj) { Object.freeze(obj); return obj; }
+                              : function(obj) { return obj; });
+  var getPrototypeOf = Object.getPrototypeOf || function(obj) { 
+    return Object.prototype;
+  };
   var getOwnPropertyNames = Object.getOwnPropertyNames ||
       function(obj) {
         var props = [];
         for (var p in obj) { if (hasOwnProperty(obj,p)) { props.push(p); } }
         return props;
       };
-  var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor ||
+  var getOwnPropertyDescriptor = supportsGOPD() ?
+      Object.getOwnPropertyDescriptor :
       function(obj, name) {
         return {
           value: obj[name],
@@ -8365,7 +8528,7 @@ exports.Trait = (function(){
           configurable: true
         };
       };
-  var defineProperty = Object.defineProperty ||
+  var defineProperty = supportsDP() ? Object.defineProperty :
       function(obj, name, pd) {
         obj[name] = pd.value;
       };
@@ -8450,7 +8613,8 @@ exports.Trait = (function(){
 
   // Note: isSameDesc should return true if both
   // desc1 and desc2 represent a 'required' property
-  // (otherwise two composed required properties would be turned into a conflict)
+  // (otherwise two composed required properties would be turned into
+  // a conflict) 
   function isSameDesc(desc1, desc2) {
     // for conflicting properties, don't compare values because
     // the conflicting property values are never equal
@@ -8487,9 +8651,12 @@ exports.Trait = (function(){
     return freeze(set);
   }
 
-  // == singleton object to be used as the placeholder for a required property ==
+  // == singleton object to be used as the placeholder for a required
+  // property == 
   
-  var required = freeze({ toString: function() { return '<Trait.required>'; } });
+  var required = freeze({ 
+    toString: function() { return '<Trait.required>'; } 
+  });
 
   // == The public API methods ==
 
@@ -8500,20 +8667,23 @@ exports.Trait = (function(){
    * @returns a new trait describing all of the own properties of the object
    *          (both enumerable and non-enumerable)
    *
-   * As a general rule, 'trait' should be invoked with an
-   * object literal, since the object merely serves as a record
-   * descriptor. Both its identity and its prototype chain are irrelevant.
+   * As a general rule, 'trait' should be invoked with an object
+   * literal, since the object merely serves as a record
+   * descriptor. Both its identity and its prototype chain are
+   * irrelevant.
    * 
-   * Data properties bound to function objects in the argument will be flagged
-   * as 'method' properties. The prototype of these function objects is frozen.
+   * Data properties bound to function objects in the argument will be
+   * flagged as 'method' properties. The prototype of these function
+   * objects is frozen.
    * 
-   * Data properties bound to the 'required' singleton exported by this module
-   * will be marked as 'required' properties.
+   * Data properties bound to the 'required' singleton exported by
+   * this module will be marked as 'required' properties.
    *
-   * The <tt>trait</tt> function is pure if no other code can witness the
-   * side-effects of freezing the prototypes of the methods. If <tt>trait</tt>
-   * is invoked with an object literal whose methods are represented as
-   * in-place anonymous functions, this should normally be the case.
+   * The <tt>trait</tt> function is pure if no other code can witness
+   * the side-effects of freezing the prototypes of the methods. If
+   * <tt>trait</tt> is invoked with an object literal whose methods
+   * are represented as in-place anonymous functions, this should
+   * normally be the case.
    */
   function trait(obj) {
     var map = {};
@@ -8561,15 +8731,18 @@ exports.Trait = (function(){
         if (hasOwnProperty(newTrait, name) &&
             !newTrait[name].required) {
           
-          // a non-required property with the same name was previously defined
-          // this is not a conflict if pd represents a 'required' property itself:
+          // a non-required property with the same name was previously
+          // defined this is not a conflict if pd represents a
+          // 'required' property itself:
           if (pd.required) {
-            return; // skip this property, the required property is now present
+            return; // skip this property, the required property is
+   	            // now present 
           }
             
           if (!isSameDesc(newTrait[name], pd)) {
             // a distinct, non-required property with the same name
-            // was previously defined by another trait => mark as conflicting property
+            // was previously defined by another trait => mark as
+	    // conflicting property
             newTrait[name] = makeConflictingPropDesc(name); 
           } // else,
           // properties are not in conflict if they refer to the same value
@@ -8613,16 +8786,18 @@ exports.Trait = (function(){
   /**
    * var newTrait = override(trait_1, trait_2, ..., trait_N)
    *
-   * @returns a new trait with all of the combined properties of the argument traits.
-   *          In contrast to 'compose', 'override' immediately resolves all conflicts
-   *          resulting from this composition by overriding the properties of later
-   *          traits. Trait priority is from left to right. I.e. the properties of the
-   *          leftmost trait are never overridden.
+   * @returns a new trait with all of the combined properties of the
+   *          argument traits.  In contrast to 'compose', 'override'
+   *          immediately resolves all conflicts resulting from this
+   *          composition by overriding the properties of later
+   *          traits. Trait priority is from left to right. I.e. the
+   *          properties of the leftmost trait are never overridden.
    *
    *  override is associative:
    *    override(t1,t2,t3) is equivalent to override(t1, override(t2, t3)) or
    *    to override(override(t1, t2), t3)
-   *  override is not commutative: override(t1,t2) is not equivalent to override(t2,t1)
+   *  override is not commutative: override(t1,t2) is not equivalent
+   *    to override(t2,t1)
    *
    * override() returns an empty trait
    * override(trait_1) returns a trait equivalent to trait_1
@@ -8651,7 +8826,8 @@ exports.Trait = (function(){
    *          and all of the properties of recessiveTrait not in dominantTrait
    *
    * Note: override is associative:
-   *   override(t1, override(t2, t3)) is equivalent to override(override(t1, t2), t3)
+   *   override(t1, override(t2, t3)) is equivalent to
+   *   override(override(t1, t2), t3) 
    */
   /*function override(frontT, backT) {
     var newTrait = {};
@@ -8686,12 +8862,14 @@ exports.Trait = (function(){
    *                                 { a: { required: true },
    *                                   b: t[a] })
    *
-   * For each renamed property, a required property is generated.
-   * If the map renames two properties to the same name, a conflict is generated.
-   * If the map renames a property to an existing unrenamed property, a conflict is generated.
+   * For each renamed property, a required property is generated.  If
+   * the map renames two properties to the same name, a conflict is
+   * generated.  If the map renames a property to an existing
+   * unrenamed property, a conflict is generated.
    *
-   * Note: rename(A, rename(B, t)) is equivalent to rename(\n -> A(B(n)), t)
-   * Note: rename({...},exclude([...], t)) is not eqv to exclude([...],rename({...}, t))
+   * Note: rename(A, rename(B, t)) is equivalent to rename(\n ->
+   * A(B(n)), t) Note: rename({...},exclude([...], t)) is not eqv to
+   * exclude([...],rename({...}, t))
    */
   function rename(map, trait) {
     var renamedTrait = {};
@@ -8699,7 +8877,8 @@ exports.Trait = (function(){
       // required props are never renamed
       if (hasOwnProperty(map, name) && !trait[name].required) {
         var alias = map[name]; // alias defined in map
-        if (hasOwnProperty(renamedTrait, alias) && !renamedTrait[alias].required) {
+        if (hasOwnProperty(renamedTrait, alias) && 
+	    !renamedTrait[alias].required) {
           // could happen if 2 props are mapped to the same alias
           renamedTrait[alias] = makeConflictingPropDesc(alias);
         } else {
@@ -8708,8 +8887,8 @@ exports.Trait = (function(){
         }
         // add a required property under the original name
         // but only if a property under the original name does not exist
-        // such a prop could exist if an earlier prop in the trait was previously
-        // aliased to this name
+        // such a prop could exist if an earlier prop in the trait was
+        // previously aliased to this name
         if (!hasOwnProperty(renamedTrait, name)) {
           renamedTrait[name] = makeRequiredPropDesc(name);     
         }
@@ -8719,8 +8898,8 @@ exports.Trait = (function(){
           if (!trait[name].required) {
             renamedTrait[name] = makeConflictingPropDesc(name);            
           }
-          // else required property overridden by a previously aliased property
-          // and otherwise ignored
+          // else required property overridden by a previously aliased
+          // property and otherwise ignored
         } else {
           renamedTrait[name] = trait[name];
         }
@@ -8731,17 +8910,21 @@ exports.Trait = (function(){
   }
   
   /**
-   * var newTrait = resolve({ oldName: 'newName', excludeName: undefined, ... }, trait)
+   * var newTrait = resolve({ oldName: 'newName', excludeName:
+   * undefined, ... }, trait)
    *
-   * This is a convenience function combining renaming and exclusion. It can be implemented
-   * as <tt>rename(map, exclude(exclusions, trait))</tt> where map is the subset of
-   * mappings from oldName to newName and exclusions is an array of all the keys that map
-   * to undefined (or another falsy value).
+   * This is a convenience function combining renaming and
+   * exclusion. It can be implemented as <tt>rename(map,
+   * exclude(exclusions, trait))</tt> where map is the subset of
+   * mappings from oldName to newName and exclusions is an array of
+   * all the keys that map to undefined (or another falsy value).
    *
-   * @param resolutions an object whose own properties serve as a mapping from
-            old names to new names, or to undefined if the property should be excluded
+   * @param resolutions an object whose own properties serve as a
+            mapping from old names to new names, or to undefined if
+            the property should be excluded
    * @param trait a trait object
-   * @returns a resolved trait with the same own properties as the original trait.
+   * @returns a resolved trait with the same own properties as the
+   * original trait.
    *
    * In a resolved trait, all own properties whose name is an own property
    * of resolutions will be renamed to resolutions[name] if it is truthy,
@@ -8751,10 +8934,12 @@ exports.Trait = (function(){
    * Note, it's important to _first_ exclude, _then_ rename, since exclude
    * and rename are not associative, for example:
    * rename({a: 'b'}, exclude(['b'], trait({ a:1,b:2 }))) eqv trait({b:1})
-   * exclude(['b'], rename({a: 'b'}, trait({ a:1,b:2 }))) eqv trait({b:Trait.required})
+   * exclude(['b'], rename({a: 'b'}, trait({ a:1,b:2 }))) eqv
+   * trait({b:Trait.required}) 
    *
-   * writing resolve({a:'b', b: undefined},trait({a:1,b:2})) makes it clear that
-   * what is meant is to simply drop the old 'b' and rename 'a' to 'b'
+   * writing resolve({a:'b', b: undefined},trait({a:1,b:2})) makes it
+   * clear that what is meant is to simply drop the old 'b' and rename
+   * 'a' to 'b'
    */
   function resolve(resolutions, trait) {
     var renames = {};
@@ -8778,27 +8963,31 @@ exports.Trait = (function(){
    * @param proto denotes the prototype of the completed object
    * @param trait a trait object to be turned into a complete object
    * @returns an object with all of the properties described by the trait.
-   * @throws 'Missing required property' the trait still contains a required property.
-   * @throws 'Remaining conflicting property' if the trait still contains a conflicting property.
+   * @throws 'Missing required property' the trait still contains a
+   *         required property.
+   * @throws 'Remaining conflicting property' if the trait still
+   *         contains a conflicting property. 
    *
    * Trait.create is like Object.create, except that it generates
    * high-integrity or final objects. In addition to creating a new object
    * from a trait, it also ensures that:
    *    - an exception is thrown if 'trait' still contains required properties
-   *    - an exception is thrown if 'trait' still contains conflicting properties
+   *    - an exception is thrown if 'trait' still contains conflicting
+   *      properties 
    *    - the object is and all of its accessor and method properties are frozen
-   *    - the 'this' pseudovariable in all accessors and methods of the object is
-   *      bound to the composed object.
+   *    - the 'this' pseudovariable in all accessors and methods of
+   *      the object is bound to the composed object.
    *
    *  Use Object.create instead of Trait.create if you want to create
    *  abstract or malleable objects. Keep in mind that for such objects:
    *    - no exception is thrown if 'trait' still contains required properties
    *      (the properties are simply dropped from the composite object)
-   *    - no exception is thrown if 'trait' still contains conflicting properties
-   *      (these properties remain as conflicting properties in the composite object)
+   *    - no exception is thrown if 'trait' still contains conflicting
+   *      properties (these properties remain as conflicting
+   *      properties in the composite object) 
    *    - neither the object nor its accessor and method properties are frozen
-   *    - the 'this' pseudovariable in all accessors and methods of the object is
-   *      left unbound.
+   *    - the 'this' pseudovariable in all accessors and methods of
+   *      the object is left unbound.
    */
   function create(proto, trait) {
     var self = Object_create(proto);
@@ -8808,8 +8997,10 @@ exports.Trait = (function(){
       var pd = trait[name];
       // check for remaining 'required' properties
       // Note: it's OK for the prototype to provide the properties
-      if (pd.required && !(name in proto)) {
-        throw new Error('Missing required property: '+name);
+      if (pd.required) {
+        if (!(name in proto)) {
+          throw new Error('Missing required property: '+name);
+        }
       } else if (pd.conflict) { // check for remaining conflicting properties
         throw new Error('Remaining conflicting property: '+name);
       } else if ('value' in pd) { // data property
@@ -8851,7 +9042,8 @@ exports.Trait = (function(){
    * names n, T1[n] is equivalent to T2[n]. Two property descriptors are
    * equivalent if they have the same value, accessors and attributes.
    *
-   * @return a boolean indicating whether the two argument traits are equivalent.
+   * @return a boolean indicating whether the two argument traits are
+   *         equivalent.
    */
   function eqv(trait1, trait2) {
     var names1 = getOwnPropertyNames(trait1);
@@ -8875,7 +9067,8 @@ exports.Trait = (function(){
     Object.create = Object_create;
   }
   // ES5 does not by default provide Object.getOwnProperties
-  // if it's not defined, the Traits library defines this utility function on Object
+  // if it's not defined, the Traits library defines this utility
+  // function on Object 
   if(!Object.getOwnProperties) {
     Object.getOwnProperties = getOwnProperties;
   }
@@ -8896,7 +9089,11 @@ exports.Trait = (function(){
   
 })();
 
-// --- End traits-0.1.js ---
+if (typeof exports !== "undefined") { // CommonJS module support
+  exports.Trait = Trait;
+}
+
+// --- End traits-0.3.js ---
 
 
 });
@@ -9981,7 +10178,7 @@ exports.createSession = function(view, user) {
 });
 ;bespin.tiki.register("::syntax_manager", {
     name: "syntax_manager",
-    dependencies: { "worker_manager": "0.0.0", "events": "0.0.0", "underscore": "0.0.0", "syntax_directory": "0.0.0" }
+    dependencies: { "worker_manager": "0.0.0", "syntax_directory": "0.0.0", "events": "0.0.0", "underscore": "0.0.0", "settings": "0.0.0" }
 });
 bespin.tiki.module("syntax_manager:index",function(require,exports,module) {
 /* ***** BEGIN LICENSE BLOCK *****
@@ -10026,6 +10223,7 @@ var Event = require('events').Event;
 var WorkerSupervisor = require('worker_manager').WorkerSupervisor;
 var console = require('bespin:console').console;
 var rangeutils = require('rangeutils:utils/range');
+var settings = require('settings').settings;
 var syntaxDirectory = require('syntax_directory').syntaxDirectory;
 
 // The number of lines to highlight at once.
@@ -10152,7 +10350,13 @@ Context.prototype = {
     },
 
     _workerStarted: function() {
+        this._syntaxInfo.settings.forEach(function(name) {
+            var value = settings.get(name);
+            this._worker.send('setSyntaxSetting', [ name, value ]);
+        }, this);
+
         this._worker.send('loadSyntax', [ this._syntaxInfo.name ]);
+
         if (this._active) {
             this._annotate();
         }
@@ -12275,11 +12479,11 @@ exports.unregisterThemeStyles = function(extension) {
 };
 
 });
-;bespin.tiki.register("::types", {
-    name: "types",
-    dependencies: {  }
+;bespin.tiki.register("::whitetheme", {
+    name: "whitetheme",
+    dependencies: { "theme_manager": "0.0.0" }
 });
-bespin.tiki.module("types:basic",function(require,exports,module) {
+bespin.tiki.module("whitetheme:index",function(require,exports,module) {
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12317,436 +12521,200 @@ bespin.tiki.module("types:basic",function(require,exports,module) {
  *
  * ***** END LICENSE BLOCK ***** */
 
-var catalog = require('bespin:plugins').catalog;
-var console = require('bespin:console').console;
-var Promise = require('bespin:promise').Promise;
+exports.whiteTheme = function() {
+    return {
+        global: {
+            // Standard font.
+            font:           'arial, lucida, helvetica, sans-serif',
+            // Standard font size.
+            font_size:      '14px',
+            // Standard line_height.
+            line_height:    '1.8em',
+            // Text color.
+            color:          '#2E2E3D',
+            // Text shadow css attribute.
+            text_shadow:    '1px 1px white',
+            // Text error color.
+            error_color:    '#C03A38',
+            // The color for headers (<h1> etc).
+            header_color:   '#222222',
+            // The color for links.
+            link_color:     '#597BAC',
 
-var r = require;
+            // Variables for a pane - e.g. the login pane.
+            pane: {
+                h1: {
+                   font:        "'MuseoSans', Helvetica",
+                   font_size:   '2.8em',
+                   color:       "#2C3480"
+                },
 
-/**
- * These are the basic types that we accept. They are vaguely based on the
- * Jetpack settings system (https://wiki.mozilla.org/Labs/Jetpack/JEP/24)
- * although clearly more restricted.
- * <p>In addition to these types, Jetpack also accepts range, member, password
- * that we are thinking of adding in the short term.
- */
+                link_color:     '@global_link_color',
 
-/**
- * 'text' is the default if no type is given.
- */
-exports.text = {
-    isValid: function(value, typeExt) {
-        return typeof value == 'string';
-    },
+                background:     '#DFDFDF',
+                border_radius:  '.5em',
 
-    toString: function(value, typeExt) {
-        return value;
-    },
+                color:          '#2E2E3D',
+                text_shadow:    '1px 1px #DDD'
+            },
 
-    fromString: function(value, typeExt) {
-        return value;
-    }
-};
+            // Variables for a html form.
+            form: {
+                font: "@global_font",
+                font_size: '@global_font_size',
+                line_height: '@global_line_height',
 
-/**
- * We don't currently plan to distinguish between integers and floats
- */
-exports.number = {
-    isValid: function(value, typeExt) {
-        if (isNaN(value)) {
-            return false;
-        }
-        if (value === null) {
-            return false;
-        }
-        if (value === undefined) {
-            return false;
-        }
-        if (value === Infinity) {
-            return false;
-        }
-        return typeof value == 'number';// && !isNaN(value);
-    },
+                color: 'black',
+                text_shadow: '0px 0px transparent'
+            },
 
-    toString: function(value, typeExt) {
-        if (!value) {
-            return null;
-        }
-        return '' + value;
-    },
+            // Variables for a controller: textInput, tree etc.
+            control: {
+                color:          '#222',
+                border:         '1px solid rgba(0, 0, 0, 0.2)',
+                border_radius:  '0.25em',
+                background:     'rgba(0, 0, 0, 0.1)',
 
-    fromString: function(value, typeExt) {
-        if (!value) {
-            return null;
-        }
-        var reply = parseInt(value, 10);
-        if (isNaN(reply)) {
-            throw new Error('Can\'t convert "' + value + '" to a number.');
-        }
-        return reply;
-    }
-};
-
-/**
- * true/false values
- */
-exports.bool = {
-    isValid: function(value, typeExt) {
-        return typeof value == 'boolean';
-    },
-
-    toString: function(value, typeExt) {
-        return '' + value;
-    },
-
-    fromString: function(value, typeExt) {
-        if (value === null) {
-            return null;
-        }
-
-        if (!value.toLowerCase) {
-            return !!value;
-        }
-
-        var lower = value.toLowerCase();
-        if (lower == 'true') {
-            return true;
-        } else if (lower == 'false') {
-            return false;
-        }
-
-        return !!value;
-    }
-};
-
-/**
- * A JSON object
- * TODO: Check to see how this works out.
- */
-exports.object = {
-    isValid: function(value, typeExt) {
-        return typeof value == 'object';
-    },
-
-    toString: function(value, typeExt) {
-        return JSON.stringify(value);
-    },
-
-    fromString: function(value, typeExt) {
-        return JSON.parse(value);
-    }
-};
-
-/**
- * One of a known set of options
- */
-exports.selection = {
-    isValid: function(value, typeExt) {
-        if (typeof value != 'string') {
-            return false;
-        }
-
-        if (!typeExt.data) {
-            console.error('Missing data on selection type extension. Skipping');
-            return true;
-        }
-
-        var match = false;
-        typeExt.data.forEach(function(option) {
-            if (value == option) {
-                match = true;
-            }
-        });
-
-        return match;
-    },
-
-    toString: function(value, typeExt) {
-        return value;
-    },
-
-    fromString: function(value, typeExt) {
-        // TODO: should we validate and return null if invalid?
-        return value;
-    },
-
-    resolveTypeSpec: function(extension, typeSpec) {
-        var promise = new Promise();
-
-        if (typeSpec.data) {
-            // If we've got the data already - just use it
-            extension.data = typeSpec.data;
-            promise.resolve();
-        } else if (typeSpec.pointer) {
-            catalog.loadObjectForPropertyPath(typeSpec.pointer).then(function(obj) {
-                var reply = obj(typeSpec);
-                if (typeof reply.then === 'function') {
-                    reply.then(function(data) {
-                        extension.data = data;
-                        promise.resolve();
-                    });
-                } else {
-                    extension.data = reply;
-                    promise.resolve();
+                active: {
+                    color:          '#000',
+                    border:         '1px solid #597BAC',
+                    inset_color:    '#597BAC',
+                    background:     'rgba(0, 0, 0, 0.1)'
                 }
-            }, function(ex) {
-                promise.reject(ex);
-            });
-        } else {
-            // No extra data available
-            console.warn('Missing data/pointer for selection', typeSpec);
-            promise.resolve();
-        }
+            },
 
-        return promise;
-    }
-};
+            // Variables for html buttons.
+            button: {
+                color: 'white',
+                background: '#3E6CB9'
+            },
 
-});
+            // Variables for the containers.
+            container: {
+                background:     '#F8F8F8',
+                border:         '1px solid black'
+            },
 
-bespin.tiki.module("types:types",function(require,exports,module) {
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Bespin.
- *
- * The Initial Developer of the Original Code is
- * Mozilla.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Bespin Team (bespin@mozilla.com)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+            // Variables for a menu - e.g. the command line menu.
+            menu: {
+                border_color:   'black',
+                inset_color:    '#999',
+                background:     'transparent'
+            },
 
-var catalog = require('bespin:plugins').catalog;
-var console = require('bespin:console').console;
-var Promise = require('bespin:promise').Promise;
+            // Variables for elements that can get selected - e.g. the items
+            // in the command line menu.
+            selectable: {
+                color:          'black',
+                border:         '0px solid transparent',
+                background:     'transparent',
 
-/**
- * Get the simple text-only, no-param version of a typeSpec.
- */
-exports.getSimpleName = function(typeSpec) {
-    if (!typeSpec) {
-        throw new Error('null|undefined is not a valid typeSpec');
-    }
+                active: {
+                    color:          'white',
+                    border:         '0px solid transparent',
+                    background:     '#6780E4'
+                },
 
-    if (typeof typeSpec == 'string') {
-        return typeSpec;
-    }
+                hover: {
+                    color:          'white',
+                    border:         '0px solid transparent',
+                    background:     '#6780E4'
+                }
+            },
 
-    if (typeof typeSpec == 'object') {
-        if (!typeSpec.name) {
-            throw new Error('Missing name member to typeSpec');
-        }
+            // Variables for hint text.
+            hint: {
+                color:          '#78788D',
 
-        return typeSpec.name;
-    }
+                active: {
+                    color:      'white'
+                },
 
-    throw new Error('Not a typeSpec: ' + typeSpec);
-};
+                hover: {
+                    color:      'white'
+                }
+            },
 
-/**
- * 2 typeSpecs are considered equal if their simple names are the same.
- */
-exports.equals = function(typeSpec1, typeSpec2) {
-    return exports.getSimpleName(typeSpec1) == exports.getSimpleName(typeSpec2);
-};
+            // Variables for accelerator (the text that holds the key short cuts
+            // like ALT+2).
+            accelerator: {
+                color:          '#344DB1',
 
-/**
- * A deferred type is one where we hope to find out what the type is just
- * in time to use it. For example the 'set' command where the type of the 2nd
- * param is defined by the 1st param.
- * @param typeSpec An object type spec with name = 'deferred' and a pointer
- * which to call through catalog.loadObjectForPropertyPath (passing in the
- * original typeSpec as a parameter). This function is expected to return either
- * a new typeSpec, or a promise of a typeSpec.
- * @returns A promise which resolves to the new type spec from the pointer.
- */
-exports.undeferTypeSpec = function(typeSpec) {
-    // Deferred types are specified by the return from the pointer
-    // function.
-    var promise = new Promise();
-    if (!typeSpec.pointer) {
-        promise.reject(new Error('Missing deferred pointer'));
-        return promise;
-    }
+                active: {
+                    color:      'white'
+                },
 
-    catalog.loadObjectForPropertyPath(typeSpec.pointer).then(function(obj) {
-        var reply = obj(typeSpec);
-        if (typeof reply.then === 'function') {
-            reply.then(function(newTypeSpec) {
-                promise.resolve(newTypeSpec);
-            }, function(ex) {
-                promise.reject(ex);
-            });
-        } else {
-            promise.resolve(reply);
-        }
-    }, function(ex) {
-        promise.reject(ex);
-    });
-
-    return promise;
-};
-
-// Warning: These next 2 functions are virtually cut and paste from
-// command_line:typehint.js
-// If you change this, there are probably parallel changes to be made there
-// There are 2 differences between the functions:
-// - We lookup type|typehint in the catalog
-// - There is a concept of a default typehint, where there is no similar
-//   thing for types. This is sensible, because hints are optional nice
-//   to have things. Not so for types.
-// Whilst we could abstract out the changes, I'm not sure this simplifies
-// already complex code
-
-/**
- * Given a string, look up the type extension in the catalog
- * @param name The type name. Object type specs are not allowed
- * @returns A promise that resolves to a type extension
- */
-function resolveObjectType(typeSpec) {
-    var promise = new Promise();
-    var ext = catalog.getExtensionByKey('type', typeSpec.name);
-    if (ext) {
-        promise.resolve({ ext: ext, typeSpec: typeSpec });
-    } else {
-        promise.reject(new Error('Unknown type: ' + typeSpec.name));
-    }
-    return promise;
-};
-
-/**
- * Look-up a typeSpec and find a corresponding type extension. This function
- * does not attempt to load the type or go through the resolution process,
- * for that you probably want #resolveType()
- * @param typeSpec A string containing the type name or an object with a name
- * and other type parameters e.g. { name: 'selection', data: [ 'one', 'two' ] }
- * @return a promise that resolves to an object containing the resolved type
- * extension and the typeSpec used to resolve the type (which could be different
- * from the passed typeSpec if this was deferred). The object will be in the
- * form { ext:... typeSpec:... }
- */
-function resolveTypeExt(typeSpec) {
-    if (typeof typeSpec === 'string') {
-        return resolveObjectType({ name: typeSpec });
-    }
-
-    if (typeof typeSpec === 'object') {
-        if (typeSpec.name === 'deferred') {
-            var promise = new Promise();
-            exports.undeferTypeSpec(typeSpec).then(function(newTypeSpec) {
-                resolveTypeExt(newTypeSpec).then(function(reply) {
-                    promise.resolve(reply);
-                }, function(ex) {
-                    promise.reject(ex);
-                });
-            });
-            return promise;
-        } else {
-            return resolveObjectType(typeSpec);
-        }
-    }
-
-    throw new Error('Unknown typeSpec type: ' + typeof typeSpec);
-};
-
-/**
- * Do all the nastiness of: converting the typeSpec to an extension, then
- * asynchronously loading the extension to a type and then calling
- * resolveTypeSpec if the loaded type defines it.
- * @param typeSpec a string or object defining the type to resolve
- * @returns a promise which resolves to an object containing the type and type
- * extension as follows: { type:... ext:... }
- * @see #resolveTypeExt
- */
-exports.resolveType = function(typeSpec) {
-    var promise = new Promise();
-
-    resolveTypeExt(typeSpec).then(function(data) {
-        data.ext.load(function(type) {
-            // We might need to resolve the typeSpec in a custom way
-            if (typeof type.resolveTypeSpec === 'function') {
-                type.resolveTypeSpec(data.ext, data.typeSpec).then(function() {
-                    promise.resolve({ type: type, ext: data.ext });
-                }, function(ex) {
-                    promise.reject(ex);
-                });
-            } else {
-                // Nothing to resolve - just go
-                promise.resolve({ type: type, ext: data.ext });
+                hover: {
+                    color:      'white'
+                }
             }
-        });
-    }, function(ex) {
-        promise.reject(ex);
-    });
+        },
 
-    return promise;
+        text_editor: {
+            // Variables for the gutter.
+            gutter: {
+                color: '#888888',
+                backgroundColor: '#d2d2d2'
+            },
+
+            // Variables for the editor.
+            editor: {
+                color: '#3D3D3D',
+                backgroundColor: '#ffffff',
+
+                cursorColor: '#000000',
+                selectedTextBackgroundColor: '#BDD9FC',
+
+                unfocusedCursorColor: '#57A1FF',
+                unfocusedCursorBackgroundColor: '#D9E9FC'
+            },
+
+            // Variables for the syntax highlighter.
+            highlighterFG: {
+                plain:     '#030303',
+                comment:   '#919191',
+                directive: '#999999',
+                error:      '#ff0000',
+                identifier: '#A7379F',
+                keyword:    '#1414EF',
+                operator:   '#477ABE',
+                string:     '#017F19',
+                addition:   '#ffffff',
+                deletion:   '#ffffff'
+            },
+
+            highlighterBG: {
+                plain:      '#ffffff',
+                addition:   '#008000',
+                deletion:   '#800000'
+            },
+
+            // Variables for the scrollers.
+            scroller: {
+                padding: 5,
+                thickness: 17,
+
+                backgroundStyle: "#2A211C",
+
+                fullAlpha: 1.0,
+                particalAlpha: 0.3,
+
+                nibStyle: "rgb(150, 150, 150)",
+                nibArrowStyle: "rgb(255, 255, 255)",
+                nibStrokeStyle: "white",
+
+                trackFillStyle: "rgba(50, 50, 50, 0.2)",
+                trackStrokeStyle: "rgb(150, 150, 150)",
+
+                barFillStyle: "rgb(60, 60, 60)",
+                barFillGradientTopStart: "rgb(150, 150, 150)",
+                barFillGradientTopStop: "rgb(100, 100, 100)",
+                barFillGradientBottomStart: "rgb(82, 82, 82)",
+                barFillGradientBottomStop: "rgb(104, 104, 104)"
+            }
+        }
+    };
 };
-
-/**
- * Convert some data from a string to another type as specified by
- * <tt>typeSpec</tt>.
- */
-exports.fromString = function(stringVersion, typeSpec) {
-    var promise = new Promise();
-    exports.resolveType(typeSpec).then(function(typeData) {
-        promise.resolve(typeData.type.fromString(stringVersion, typeData.ext));
-    });
-    return promise;
-};
-
-/**
- * Convert some data from an original type to a string as specified by
- * <tt>typeSpec</tt>.
- */
-exports.toString = function(objectVersion, typeSpec) {
-    var promise = new Promise();
-    exports.resolveType(typeSpec).then(function(typeData) {
-        promise.resolve(typeData.type.toString(objectVersion, typeData.ext));
-    });
-    return promise;
-};
-
-/**
- * Convert some data from an original type to a string as specified by
- * <tt>typeSpec</tt>.
- */
-exports.isValid = function(originalVersion, typeSpec) {
-    var promise = new Promise();
-    exports.resolveType(typeSpec).then(function(typeData) {
-        promise.resolve(typeData.type.isValid(originalVersion, typeData.ext));
-    });
-    return promise;
-};
-
-});
-
-bespin.tiki.module("types:index",function(require,exports,module) {
 
 });
 ;bespin.tiki.register("::jquery", {
@@ -19055,620 +19023,9 @@ bespin.tiki.module("embedded:index",function(require,exports,module) {
 // the common dependencies for embedded use
 
 });
-;bespin.tiki.register("::settings", {
-    name: "settings",
-    dependencies: { "types": "0.0.0" }
-});
-bespin.tiki.module("settings:commands",function(require,exports,module) {
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Bespin.
- *
- * The Initial Developer of the Original Code is
- * Mozilla.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Bespin Team (bespin@mozilla.com)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
-
-var catalog = require('bespin:plugins').catalog;
-var env = require('environment').env;
-
-var settings = require('settings').settings;
-
-/**
- * 'set' command
- */
-exports.setCommand = function(args, request) {
-    var html;
-
-    if (!args.setting) {
-        var settingsList = settings._list();
-        html = '';
-        // first sort the settingsList based on the key
-        settingsList.sort(function(a, b) {
-            if (a.key < b.key) {
-                return -1;
-            } else if (a.key == b.key) {
-                return 0;
-            } else {
-                return 1;
-            }
-        });
-
-        settingsList.forEach(function(setting) {
-            html += '<a class="setting" href="https://wiki.mozilla.org/Labs/Bespin/Settings#' +
-                    setting.key +
-                    '" title="View external documentation on setting: ' +
-                    setting.key +
-                    '" target="_blank">' +
-                    setting.key +
-                    '</a> = ' +
-                    setting.value +
-                    '<br/>';
-        });
-    } else {
-        if (args.value === undefined) {
-            html = '<strong>' + args.setting + '</strong> = ' + settings.get(args.setting);
-        } else {
-            html = 'Setting: <strong>' + args.setting + '</strong> = ' + args.value;
-            settings.set(args.setting, args.value);
-        }
-    }
-
-    request.done(html);
-};
-
-/**
- * 'unset' command
- */
-exports.unsetCommand = function(args, request) {
-    settings.resetValue(args.setting);
-    request.done('Reset ' + args.setting + ' to default: ' + settings.get(args.setting));
-};
-
-});
-
-bespin.tiki.module("settings:cookie",function(require,exports,module) {
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Bespin.
- *
- * The Initial Developer of the Original Code is
- * Mozilla.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Bespin Team (bespin@mozilla.com)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
-
-var cookie = require('bespin:util/cookie');
-
-/**
- * Save the settings in a cookie
- * This code has not been tested since reboot
- * @constructor
- */
-exports.CookiePersister = function() {
-};
-
-exports.CookiePersister.prototype = {
-    loadInitialValues: function(settings) {
-        settings._loadDefaultValues().then(function() {
-            var data = cookie.get('settings');
-            settings._loadFromObject(JSON.parse(data));
-        }.bind(this));
-    },
-
-    persistValue: function(settings, key, value) {
-        try {
-            // Aggregate the settings into a file
-            var data = {};
-            settings._getSettingNames().forEach(function(key) {
-                data[key] = settings.get(key);
-            });
-
-            var stringData = JSON.stringify(data);
-            cookie.set('settings', stringData);
-        } catch (ex) {
-            console.error('Unable to JSONify the settings! ' + ex);
-            return;
-        }
-    }
-};
-
-});
-
-bespin.tiki.module("settings:index",function(require,exports,module) {
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Bespin.
- *
- * The Initial Developer of the Original Code is
- * Mozilla.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Bespin Team (bespin@mozilla.com)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
-
-/**
- * This plug-in manages settings.
- *
- * <p>Some quick terminology: A _Choice_, is something that the application
- * offers as a way to customize how it works. For each _Choice_ there will be
- * a number of _Options_ but ultimately the user will have a _Setting_ for each
- * _Choice_. This _Setting_ maybe the default for that _Choice_.
- *
- * <p>It provides an API for controlling the known settings. This allows us to
- * provide better GUI/CLI support. See setting.js
- * <p>It provides 3 implementations of a setting store:<ul>
- * <li>MemorySettings: i.e. temporary, non-persistent. Useful in textarea
- * replacement type scenarios. See memory.js
- * <li>CookieSettings: Stores the data in a cookie. Generally not practical as
- * it slows client server communication (if any). See cookie.js
- * <li>ServerSettings: Stores data on a server using the <tt>server</tt> API.
- * See server.js
- * </ul>
- * <p>It is expected that an HTML5 storage option will be developed soon. This
- * plug-in did contain a prototype Gears implementation, however this was never
- * maintained, and has been deleted due to bit-rot.
- * <p>This plug-in also provides commands to manipulate the settings from the
- * command_line and canon plug-ins.
- *
- * <p>TODO:<ul>
- * <li>Check what happens when we alter settings from the UI
- * <li>Ensure that values can be bound in a SC sense
- * <li>Convert all subscriptions to bindings.
- * <li>Implement HTML5 storage option
- * <li>Make all settings have a 'description' member and use that in set|unset
- * commands.
- * <li>When the command system is re-worked to include more GUI interaction,
- * expose data in settings to that system.
- * </ul>
- *
- * <p>For future versions of the API it might be better to decrease the
- * dependency on settings, and increase it on the system with a setting.
- * e.g. Now:
- * <pre>
- * setting.addSetting({ name:'foo', ... });
- * settings.set('foo', 'bar');
- * </pre>
- * <p>Vs the potentially better:
- * <pre>
- * var foo = setting.addSetting({ name:'foo', ... });
- * foo.value = 'bar';
- * </pre>
- * <p>Comparison:
- * <ul>
- * <li>The latter version gains by forcing access to the setting to be through
- * the plug-in providing it, so there wouldn't be any hidden dependencies.
- * <li>It's also more compact.
- * <li>It could provide access to to other methods e.g. <tt>foo.reset()</tt>
- * and <tt>foo.onChange(function(val) {...});</tt> (but see SC binding)
- * <li>On the other hand dependencies are so spread out right now that it's
- * probably hard to do this easily. We should move to this in the future.
- * </ul>
- */
-
-var catalog = require('bespin:plugins').catalog;
-var console = require('bespin:console').console;
-var Promise = require('bespin:promise').Promise;
-var groupPromises = require('bespin:promise').group;
-
-var types = require('types:types');
-
-/**
- * Find and configure the settings object.
- * @see MemorySettings.addSetting()
- */
-exports.addSetting = function(settingExt) {
-    require('settings').settings.addSetting(settingExt);
-};
-
-/**
- * Fetch an array of the currently known settings
- */
-exports.getSettings = function() {
-    return catalog.getExtensions('setting');
-};
-
-/**
- * Something of a hack to allow the set command to give a clearer definition
- * of the type to the command line.
- */
-exports.getTypeSpecFromAssignment = function(typeSpec) {
-    var assignments = typeSpec.assignments;
-    var replacement = 'text';
-
-    if (assignments) {
-        // Find the assignment for 'setting' so we can get it's value
-        var settingAssignment = null;
-        assignments.forEach(function(assignment) {
-            if (assignment.param.name === 'setting') {
-                settingAssignment = assignment;
-            }
-        });
-
-        if (settingAssignment) {
-            var settingName = settingAssignment.value;
-            if (settingName && settingName !== '') {
-                var settingExt = catalog.getExtensionByKey('setting', settingName);
-                if (settingExt) {
-                    replacement = settingExt.type;
-                }
-            }
-        }
-    }
-
-    return replacement;
-};
-
-/**
- * A base class for all the various methods of storing settings.
- * <p>Usage:
- * <pre>
- * // Create manually, or require 'settings' from the container.
- * // This is the manual version:
- * var settings = require('bespin:plugins').catalog.getObject('settings');
- * // Add a new setting
- * settings.addSetting({ name:'foo', ... });
- * // Display the default value
- * alert(settings.get('foo'));
- * // Alter the value, which also publishes the change etc.
- * settings.set('foo', 'bar');
- * // Reset the value to the default
- * settings.resetValue('foo');
- * </pre>
- * @class
- */
-exports.MemorySettings = function() {
-};
-
-exports.MemorySettings.prototype = {
-    /**
-     * Storage for the setting values
-     */
-    _values: {},
-
-    /**
-     * Storage for deactivated values
-     */
-    _deactivated: {},
-
-    /**
-     * A Persister is able to store settings. It is an object that defines
-     * two functions:
-     * loadInitialValues(settings) and persistValue(settings, key, value).
-     */
-    setPersister: function(persister) {
-        this._persister = persister;
-        if (persister) {
-            persister.loadInitialValues(this);
-        }
-    },
-
-    /**
-     * Read accessor
-     */
-    get: function(key) {
-        return this._values[key];
-    },
-
-    /**
-     * Override observable.set(key, value) to provide type conversion and
-     * validation.
-     */
-    set: function(key, value) {
-        var settingExt = catalog.getExtensionByKey('setting', key);
-        if (!settingExt) {
-            // If there is no definition for this setting, then warn the user
-            // and store the setting in raw format. If the setting gets defined,
-            // the addSetting() function is called which then takes up the
-            // here stored setting and calls set() to convert the setting.
-            console.warn('Setting not defined: ', key, value);
-            this._deactivated[key] = value;
-        }
-        else if (typeof value == 'string' && settingExt.type == 'string') {
-            // no conversion needed
-            this._values[key] = value;
-        }
-        else {
-            var inline = false;
-
-            types.fromString(value, settingExt.type).then(function(converted) {
-                inline = true;
-                this._values[key] = converted;
-
-                // Inform subscriptions of the change
-                catalog.publish(this, 'settingChange', key, converted);
-            }.bind(this), function(ex) {
-                console.error('Error setting', key, ': ', ex);
-            });
-
-            if (!inline) {
-                console.warn('About to set string version of ', key, 'delaying typed set.');
-                this._values[key] = value;
-            }
-        }
-
-        this._persistValue(key, value);
-        return this;
-    },
-
-    /**
-     * Function to add to the list of available settings.
-     * <p>Example usage:
-     * <pre>
-     * var settings = require('bespin:plugins').catalog.getObject('settings');
-     * settings.addSetting({
-     *     name: 'tabsize', // For use in settings.get('X')
-     *     type: 'number',  // To allow value checking.
-     *     defaultValue: 4  // Default value for use when none is directly set
-     * });
-     * </pre>
-     * @param {object} settingExt Object containing name/type/defaultValue members.
-     */
-    addSetting: function(settingExt) {
-        if (!settingExt.name) {
-            console.error('Setting.name == undefined. Ignoring.', settingExt);
-            return;
-        }
-
-        if (!settingExt.defaultValue === undefined) {
-            console.error('Setting.defaultValue == undefined', settingExt);
-        }
-
-        types.isValid(settingExt.defaultValue, settingExt.type).then(function(valid) {
-            if (!valid) {
-                console.warn('!Setting.isValid(Setting.defaultValue)', settingExt);
-            }
-
-            // The value can be
-            // 1) the value of a setting that is not activated at the moment
-            //       OR
-            // 2) the defaultValue of the setting.
-            var value = this._deactivated[settingExt.name] ||
-                    settingExt.defaultValue;
-
-            // Set the default value up.
-            this.set(settingExt.name, value);
-        }.bind(this), function(ex) {
-            console.error('Type error ', ex, ' ignoring setting ', settingExt);
-        });
-    },
-
-    /**
-     * Reset the value of the <code>key</code> setting to it's default
-     */
-    resetValue: function(key) {
-        var settingExt = catalog.getExtensionByKey('setting', key);
-        if (settingExt) {
-            this.set(key, settingExt.defaultValue);
-        } else {
-            console.log('ignore resetValue on ', key);
-        }
-    },
-
-    resetAll: function() {
-        this._getSettingNames().forEach(function(key) {
-            this.resetValue(key);
-        }.bind(this));
-    },
-
-    /**
-     * Make a list of the valid type names
-     */
-    _getSettingNames: function() {
-        var typeNames = [];
-        catalog.getExtensions('setting').forEach(function(settingExt) {
-            typeNames.push(settingExt.name);
-        });
-        return typeNames;
-    },
-
-    /**
-     * Retrieve a list of the known settings and their values
-     */
-    _list: function() {
-        var reply = [];
-        this._getSettingNames().forEach(function(setting) {
-            reply.push({
-                'key': setting,
-                'value': this.get(setting)
-            });
-        }.bind(this));
-        return reply;
-    },
-
-    /**
-     * delegates to the persister. no-op if there's no persister.
-     */
-    _persistValue: function(key, value) {
-        var persister = this._persister;
-        if (persister) {
-            persister.persistValue(this, key, value);
-        }
-    },
-
-    /**
-     * Delegates to the persister, otherwise sets up the defaults if no
-     * persister is available.
-     */
-    _loadInitialValues: function() {
-        var persister = this._persister;
-        if (persister) {
-            persister.loadInitialValues(this);
-        } else {
-            this._loadDefaultValues();
-        }
-    },
-
-    /**
-     * Prime the local cache with the defaults.
-     */
-    _loadDefaultValues: function() {
-        return this._loadFromObject(this._defaultValues());
-    },
-
-    /**
-     * Utility to load settings from an object
-     */
-    _loadFromObject: function(data) {
-        var promises = [];
-        // take the promise action out of the loop to avoid closure problems
-        var setterFactory = function(keyName) {
-            return function(value) {
-                this.set(keyName, value);
-            };
-        };
-
-        for (var key in data) {
-            if (data.hasOwnProperty(key)) {
-                var valueStr = data[key];
-                var settingExt = catalog.getExtensionByKey('setting', key);
-                if (settingExt) {
-                    // TODO: We shouldn't just ignore values without a setting
-                    var promise = types.fromString(valueStr, settingExt.type);
-                    var setter = setterFactory(key);
-                    promise.then(setter);
-                    promises.push(promise);
-                }
-            }
-        }
-
-        // Promise.group (a.k.a groupPromises) gives you a list of all the data
-        // in the grouped promises. We don't want that in case we change how
-        // this works with ignored settings (see above).
-        // So we do this to hide the list of promise resolutions.
-        var replyPromise = new Promise();
-        groupPromises(promises).then(function() {
-            replyPromise.resolve();
-        });
-        return replyPromise;
-    },
-
-    /**
-     * Utility to grab all the settings and export them into an object
-     */
-    _saveToObject: function() {
-        var promises = [];
-        var reply = {};
-
-        this._getSettingNames().forEach(function(key) {
-            var value = this.get(key);
-            var settingExt = catalog.getExtensionByKey('setting', key);
-            if (settingExt) {
-                // TODO: We shouldn't just ignore values without a setting
-                var promise = types.toString(value, settingExt.type);
-                promise.then(function(value) {
-                    reply[key] = value;
-                });
-                promises.push(promise);
-            }
-        }.bind(this));
-
-        var replyPromise = new Promise();
-        groupPromises(promises).then(function() {
-            replyPromise.resolve(reply);
-        });
-        return replyPromise;
-    },
-
-    /**
-     * The default initial settings
-     */
-    _defaultValues: function() {
-        var defaultValues = {};
-        catalog.getExtensions('setting').forEach(function(settingExt) {
-            defaultValues[settingExt.name] = settingExt.defaultValue;
-        });
-        return defaultValues;
-    }
-};
-
-exports.settings = new exports.MemorySettings();
-
-});
 ;bespin.tiki.register("::appconfig", {
     name: "appconfig",
-    dependencies: { "jquery": "0.0.0", "canon": "0.0.0", "settings": "0.0.0" }
+    dependencies: { "jquery": "0.0.0", "canon": "0.0.0", "underscore": "0.0.0", "settings": "0.0.0" }
 });
 bespin.tiki.module("appconfig:index",function(require,exports,module) {
 /* ***** BEGIN LICENSE BLOCK *****
@@ -19709,6 +19066,7 @@ bespin.tiki.module("appconfig:index",function(require,exports,module) {
  * ***** END LICENSE BLOCK ***** */
 
 var $ = require('jquery').$;
+var _ = require('underscore')._;
 var settings = require('settings').settings;
 var group = require("bespin:promise").group;
 var Promise = require("bespin:promise").Promise;
@@ -19934,6 +19292,9 @@ exports.normalizeConfig = function(catalog, config) {
         config.objects.commandLine = {
         };
     }
+    if (!config.objects.toolbar && catalog.plugins.toolbar) {
+        config.objects.toolbar = {};
+    }
 
     if (config.gui === undefined) {
         config.gui = {};
@@ -19947,6 +19308,10 @@ exports.normalizeConfig = function(catalog, config) {
         }
     }
 
+    if (!config.gui.north && config.objects.toolbar
+        && !alreadyRegistered.toolbar) {
+        config.gui.north = { component: "toolbar" };
+    }
     if (!config.gui.center && config.objects.editor
         && !alreadyRegistered.editor) {
         config.gui.center = { component: "editor" };
@@ -19995,49 +19360,67 @@ var generateGUI = function(catalog, config, pr) {
 
     var centerContainer = document.createElement('div');
     centerContainer.setAttribute('class', 'center-container');
-    container.appendChild(centerContainer);
+    var centerAdded = false;
 
     var element = config.element || document.body;
     // Add the 'bespin' class to the element in case it doesn't have this already.
     util.addClass(element, 'bespin');
     element.appendChild(container);
 
-    for (var place in config.gui) {
-        var descriptor = config.gui[place];
+    try {
+        // this shouldn't be necessary, but it looks like Firefox has an issue
+        // with the box-ordinal-group CSS property
+        ['north', 'west', 'center', 'east', 'south'].forEach(function(place) {
+            var descriptor = config.gui[place];
+            if (!descriptor) {
+                return;
+            }
 
-        var component = catalog.getObject(descriptor.component);
-        if (!component) {
-            error = 'Cannot find object ' + descriptor.component +
-                            ' to attach to the Bespin UI';
-            console.error(error);
-            pr.reject(error);
-            return;
-        }
+            var component = catalog.getObject(descriptor.component);
+            if (!component) {
+                throw 'Cannot find object ' + descriptor.component +
+                                ' to attach to the Bespin UI';
+            }
 
-        element = component.element;
-        if (!element) {
-            error = 'Component ' + descriptor.component + ' does not have' +
-                          ' an "element" attribute to attach to the Bespin UI';
-            console.error(error);
-            pr.reject(error);
-            return;
-        }
+            element = component.element;
+            if (!element) {
+                throw 'Component ' + descriptor.component + ' does not ' +
+                            'have an "element" attribute to attach to the ' +
+                            'Bespin UI';
+            }
 
-        $(element).addClass(place);
+            $(element).addClass(place);
 
-        if (place == 'west' || place == 'east' || place == 'center') {
-            centerContainer.appendChild(element);
-        } else {
-            container.appendChild(element);
-        }
+            if (place == 'west' || place == 'east' || place == 'center') {
+                if (!centerAdded) {
+                    container.appendChild(centerContainer);
+                    centerAdded = true;
+                }
+                centerContainer.appendChild(element);
+            } else {
+                container.appendChild(element);
+            }
+        });
 
-        // Call the elementAppended event if there is one.
-        if (component.elementAppended) {
-            component.elementAppended();
-        }
+        // Call the "elementAppended" callbacks.
+        ['north', 'west', 'east', 'south', 'center'].forEach(function(place) {
+            var descriptor = config.gui[place];
+            if (!descriptor) {
+                return;
+            }
+
+            var component = catalog.getObject(descriptor.component);
+            if (component.elementAppended != null) {
+                component.elementAppended();
+            }
+        });
+
+        pr.resolve();
+    } catch (e) {
+        console.error(e);
+        pr.reject(e);
     }
 
-    pr.resolve();
 };
 
 });
@@ -20134,7 +19517,7 @@ bespin.tiki.module("screen_theme:index",function(require,exports,module) {
 (function() {
 var $ = bespin.tiki.require("jquery").$;
 $(document).ready(function() {
-    bespin.tiki.require("bespin:plugins").catalog.registerMetadata({"text_editor": {"resourceURL": "resources/text_editor/", "description": "Canvas-based text editor component and many common editing commands", "dependencies": {"completion": "0.0.0", "undomanager": "0.0.0", "settings": "0.0.0", "canon": "0.0.0", "rangeutils": "0.0.0", "traits": "0.0.0", "theme_manager": "0.0.0", "keyboard": "0.0.0", "edit_session": "0.0.0", "syntax_manager": "0.0.0"}, "testmodules": ["tests/controllers/testLayoutmanager", "tests/models/testTextstorage", "tests/testScratchcanvas", "tests/utils/testRect"], "provides": [{"action": "new", "pointer": "views/editor#EditorView", "ep": "factory", "name": "text_editor"}, {"pointer": "views/editor#EditorView", "ep": "appcomponent", "name": "editor_view"}, {"predicates": {"isTextView": true}, "pointer": "commands/editing#backspace", "ep": "command", "key": "backspace", "name": "backspace"}, {"predicates": {"isTextView": true}, "pointer": "commands/editing#deleteCommand", "ep": "command", "key": "delete", "name": "delete"}, {"description": "Delete all lines currently selected", "key": "ctrl_d", "predicates": {"isTextView": true}, "pointer": "commands/editing#deleteLines", "ep": "command", "name": "deletelines"}, {"description": "Create a new, empty line below the current one", "key": "ctrl_return", "predicates": {"isTextView": true}, "pointer": "commands/editing#openLine", "ep": "command", "name": "openline"}, {"description": "Join the current line with the following", "key": "ctrl_shift_j", "predicates": {"isTextView": true}, "pointer": "commands/editing#joinLines", "ep": "command", "name": "joinline"}, {"params": [{"defaultValue": "", "type": "text", "name": "text", "description": "The text to insert"}], "pointer": "commands/editing#insertText", "ep": "command", "name": "insertText"}, {"predicates": {"completing": false, "isTextView": true}, "pointer": "commands/editing#newline", "ep": "command", "key": "return", "name": "newline"}, {"predicates": {"completing": false, "isTextView": true}, "pointer": "commands/editing#tab", "ep": "command", "key": "tab", "name": "tab"}, {"predicates": {"isTextView": true}, "pointer": "commands/editing#untab", "ep": "command", "key": "shift_tab", "name": "untab"}, {"predicates": {"isTextView": true}, "ep": "command", "name": "move"}, {"description": "Repeat the last search (forward)", "pointer": "commands/editor#findNextCommand", "ep": "command", "key": "ctrl_g", "name": "findnext"}, {"description": "Repeat the last search (backward)", "pointer": "commands/editor#findPrevCommand", "ep": "command", "key": "ctrl_shift_g", "name": "findprev"}, {"predicates": {"completing": false, "isTextView": true}, "pointer": "commands/movement#moveDown", "ep": "command", "key": "down", "name": "move down"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveLeft", "ep": "command", "key": "left", "name": "move left"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveRight", "ep": "command", "key": "right", "name": "move right"}, {"predicates": {"completing": false, "isTextView": true}, "pointer": "commands/movement#moveUp", "ep": "command", "key": "up", "name": "move up"}, {"predicates": {"isTextView": true}, "ep": "command", "name": "select"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectDown", "ep": "command", "key": "shift_down", "name": "select down"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectLeft", "ep": "command", "key": "shift_left", "name": "select left"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectRight", "ep": "command", "key": "shift_right", "name": "select right"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectUp", "ep": "command", "key": "shift_up", "name": "select up"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveLineEnd", "ep": "command", "key": ["end", "ctrl_right"], "name": "move lineend"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectLineEnd", "ep": "command", "key": ["shift_end", "ctrl_shift_right"], "name": "select lineend"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveDocEnd", "ep": "command", "key": "ctrl_down", "name": "move docend"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectDocEnd", "ep": "command", "key": "ctrl_shift_down", "name": "select docend"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveLineStart", "ep": "command", "key": ["home", "ctrl_left"], "name": "move linestart"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectLineStart", "ep": "command", "key": ["shift_home", "ctrl_shift_left"], "name": "select linestart"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveDocStart", "ep": "command", "key": "ctrl_up", "name": "move docstart"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectDocStart", "ep": "command", "key": "ctrl_shift_up", "name": "select docstart"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveNextWord", "ep": "command", "key": ["alt_right"], "name": "move nextword"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectNextWord", "ep": "command", "key": ["alt_shift_right"], "name": "select nextword"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#movePreviousWord", "ep": "command", "key": ["alt_left"], "name": "move prevword"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectPreviousWord", "ep": "command", "key": ["alt_shift_left"], "name": "select prevword"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectAll", "ep": "command", "key": ["ctrl_a", "meta_a"], "name": "select all"}, {"predicates": {"isTextView": true}, "ep": "command", "name": "scroll"}, {"predicates": {"isTextView": true}, "pointer": "commands/scrolling#scrollDocStart", "ep": "command", "key": "ctrl_home", "name": "scroll start"}, {"predicates": {"isTextView": true}, "pointer": "commands/scrolling#scrollDocEnd", "ep": "command", "key": "ctrl_end", "name": "scroll end"}, {"predicates": {"isTextView": true}, "pointer": "commands/scrolling#scrollPageDown", "ep": "command", "key": "pagedown", "name": "scroll down"}, {"predicates": {"isTextView": true}, "pointer": "commands/scrolling#scrollPageUp", "ep": "command", "key": "pageup", "name": "scroll up"}, {"pointer": "commands/editor#lcCommand", "description": "Change all selected text to lowercase", "withKey": "CMD SHIFT L", "ep": "command", "name": "lc"}, {"pointer": "commands/editor#detabCommand", "description": "Convert tabs to spaces.", "params": [{"defaultValue": null, "type": "text", "name": "tabsize", "description": "Optionally, specify a tab size. (Defaults to setting.)"}], "ep": "command", "name": "detab"}, {"pointer": "commands/editor#entabCommand", "description": "Convert spaces to tabs.", "params": [{"defaultValue": null, "type": "text", "name": "tabsize", "description": "Optionally, specify a tab size. (Defaults to setting.)"}], "ep": "command", "name": "entab"}, {"pointer": "commands/editor#trimCommand", "description": "trim trailing or leading whitespace from each line in selection", "params": [{"defaultValue": "both", "type": {"data": [{"name": "left"}, {"name": "right"}, {"name": "both"}], "name": "selection"}, "name": "side", "description": "Do we trim from the left, right or both"}], "ep": "command", "name": "trim"}, {"pointer": "commands/editor#ucCommand", "description": "Change all selected text to uppercase", "withKey": "CMD SHIFT U", "ep": "command", "name": "uc"}, {"predicates": {"isTextView": true}, "pointer": "controllers/undo#undoManagerCommand", "ep": "command", "key": ["ctrl_shift_z"], "name": "redo"}, {"predicates": {"isTextView": true}, "pointer": "controllers/undo#undoManagerCommand", "ep": "command", "key": ["ctrl_z"], "name": "undo"}, {"description": "The distance in characters between each tab", "defaultValue": 8, "type": "number", "ep": "setting", "name": "tabstop"}, {"description": "Customize the keymapping", "defaultValue": "{}", "type": "text", "ep": "setting", "name": "customKeymapping"}, {"description": "The keymapping to use", "defaultValue": "standard", "type": "text", "ep": "setting", "name": "keymapping"}, {"description": "The editor font size in pixels", "defaultValue": 14, "type": "number", "ep": "setting", "name": "fontsize"}, {"description": "The editor font face", "defaultValue": "Monaco, Lucida Console, monospace", "type": "text", "ep": "setting", "name": "fontface"}, {"defaultValue": {"color": "#e5c138", "paddingLeft": 5, "backgroundColor": "#4c4a41", "paddingRight": 10}, "ep": "themevariable", "name": "gutter"}, {"defaultValue": {"color": "#e6e6e6", "selectedTextBackgroundColor": "#526da5", "backgroundColor": "#2a211c", "cursorColor": "#879aff", "unfocusedCursorBackgroundColor": "#73171e", "unfocusedCursorColor": "#ff0033"}, "ep": "themevariable", "name": "editor"}, {"defaultValue": {"comment": "#666666", "directive": "#999999", "keyword": "#42A8ED", "plain": "#e6e6e6", "error": "#ff0000", "operator": "#88BBFF", "identifier": "#D841FF", "string": "#039A0A"}, "ep": "themevariable", "name": "highlighter"}, {"defaultValue": {"nibStrokeStyle": "rgb(150, 150, 150)", "fullAlpha": 1.0, "barFillStyle": "rgb(0, 0, 0)", "particalAlpha": 0.29999999999999999, "barFillGradientBottomStop": "rgb(44, 44, 44)", "backgroundStyle": "#2A211C", "thickness": 17, "padding": 5, "trackStrokeStyle": "rgb(150, 150, 150)", "nibArrowStyle": "rgb(255, 255, 255)", "barFillGradientBottomStart": "rgb(22, 22, 22)", "barFillGradientTopStop": "rgb(40, 40, 40)", "barFillGradientTopStart": "rgb(90, 90, 90)", "nibStyle": "rgb(100, 100, 100)", "trackFillStyle": "rgba(50, 50, 50, 0.8)"}, "ep": "themevariable", "name": "scroller"}, {"description": "Event: Notify when something within the editor changed.", "params": [{"required": true, "name": "pointer", "description": "Function that is called whenever a change happened."}], "ep": "extensionpoint", "name": "editorChange"}], "type": "plugins/supported", "name": "text_editor"}, "less": {"resourceURL": "resources/less/", "description": "Leaner CSS", "contributors": [], "author": "Alexis Sellier <self@cloudhead.net>", "url": "http://lesscss.org", "version": "1.0.11", "dependencies": {}, "testmodules": [], "provides": [], "keywords": ["css", "parser", "lesscss", "browser"], "type": "plugins/thirdparty", "name": "less"}, "theme_manager_base": {"resourceURL": "resources/theme_manager_base/", "name": "theme_manager_base", "share": true, "environments": {"main": true}, "dependencies": {}, "testmodules": [], "provides": [{"description": "(Less)files holding the CSS style information for the UI.", "params": [{"required": true, "name": "url", "description": "Name of the ThemeStylesFile - can also be an array of files."}], "ep": "extensionpoint", "name": "themestyles"}, {"description": "Event: Notify when the theme(styles) changed.", "params": [{"required": true, "name": "pointer", "description": "Function that is called whenever the theme is changed."}], "ep": "extensionpoint", "name": "themeChange"}, {"indexOn": "name", "description": "A theme is a way change the look of the application.", "params": [{"required": false, "name": "url", "description": "Name of a ThemeStylesFile that holds theme specific CSS rules - can also be an array of files."}, {"required": true, "name": "pointer", "description": "Function that returns the ThemeData"}], "ep": "extensionpoint", "name": "theme"}], "type": "plugins/supported", "description": "Defines extension points required for theming"}, "canon": {"resourceURL": "resources/canon/", "name": "canon", "environments": {"main": true, "worker": false}, "dependencies": {"environment": "0.0.0", "events": "0.0.0", "settings": "0.0.0"}, "testmodules": [], "provides": [{"indexOn": "name", "description": "A command is a bit of functionality with optional typed arguments which can do something small like moving the cursor around the screen, or large like cloning a project from VCS.", "ep": "extensionpoint", "name": "command"}, {"description": "An extension point to be called whenever a new command begins output.", "ep": "extensionpoint", "name": "addedRequestOutput"}, {"description": "A dimensionsChanged is a way to be notified of changes to the dimension of Bespin", "ep": "extensionpoint", "name": "dimensionsChanged"}, {"description": "How many typed commands do we recall for reference?", "defaultValue": 50, "type": "number", "ep": "setting", "name": "historyLength"}, {"action": "create", "pointer": "history#InMemoryHistory", "ep": "factory", "name": "history"}], "type": "plugins/supported", "description": "Manages commands"}, "traits": {"resourceURL": "resources/traits/", "description": "Traits library, traitsjs.org", "dependencies": {}, "testmodules": [], "provides": [], "type": "plugins/thirdparty", "name": "traits"}, "keyboard": {"resourceURL": "resources/keyboard/", "description": "Keyboard shortcuts", "dependencies": {"canon": "0.0", "settings": "0.0"}, "testmodules": ["tests/testKeyboard"], "provides": [{"description": "A keymapping defines how keystrokes are interpreted.", "params": [{"required": true, "name": "states", "description": "Holds the states and all the informations about the keymapping. See docs: pluginguide/keymapping"}], "ep": "extensionpoint", "name": "keymapping"}], "type": "plugins/supported", "name": "keyboard"}, "worker_manager": {"resourceURL": "resources/worker_manager/", "description": "Manages a web worker on the browser side", "dependencies": {"canon": "0.0.0", "events": "0.0.0", "underscore": "0.0.0"}, "testmodules": [], "provides": [{"description": "Low-level web worker control (for plugin development)", "ep": "command", "name": "worker"}, {"description": "Restarts all web workers (for plugin development)", "pointer": "#workerRestartCommand", "ep": "command", "name": "worker restart"}], "type": "plugins/supported", "name": "worker_manager"}, "edit_session": {"resourceURL": "resources/edit_session/", "description": "Ties together the files being edited with the views on screen", "dependencies": {"events": "0.0.0"}, "testmodules": ["tests/testSession"], "provides": [{"action": "call", "pointer": "#createSession", "ep": "factory", "name": "session"}], "type": "plugins/supported", "name": "edit_session"}, "syntax_manager": {"resourceURL": "resources/syntax_manager/", "name": "syntax_manager", "environments": {"main": true, "worker": false}, "dependencies": {"worker_manager": "0.0.0", "events": "0.0.0", "underscore": "0.0.0", "syntax_directory": "0.0.0"}, "testmodules": [], "provides": [], "type": "plugins/supported", "description": "Provides syntax highlighting services for the editor"}, "completion": {"resourceURL": "resources/completion/", "description": "Code completion support", "dependencies": {"jquery": "0.0.0", "ctags": "0.0.0", "rangeutils": "0.0.0", "canon": "0.0.0", "underscore": "0.0.0"}, "testmodules": [], "provides": [{"indexOn": "name", "description": "Code completion support for specific languages", "ep": "extensionpoint", "name": "completion"}, {"description": "Accept the chosen completion", "key": ["return", "tab"], "predicates": {"completing": true}, "pointer": "controller#completeCommand", "ep": "command", "name": "complete"}, {"description": "Abandon the completion", "key": "escape", "predicates": {"completing": true}, "pointer": "controller#completeCancelCommand", "ep": "command", "name": "complete cancel"}, {"description": "Choose the completion below", "key": "down", "predicates": {"completing": true}, "pointer": "controller#completeDownCommand", "ep": "command", "name": "complete down"}, {"description": "Choose the completion above", "key": "up", "predicates": {"completing": true}, "pointer": "controller#completeUpCommand", "ep": "command", "name": "complete up"}], "type": "plugins/supported", "name": "completion"}, "environment": {"testmodules": [], "dependencies": {"settings": "0.0.0"}, "resourceURL": "resources/environment/", "name": "environment", "type": "plugins/supported"}, "undomanager": {"resourceURL": "resources/undomanager/", "description": "Manages undoable events", "testmodules": ["tests/testUndomanager"], "provides": [{"pointer": "#undoManagerCommand", "ep": "command", "key": ["ctrl_shift_z"], "name": "redo"}, {"pointer": "#undoManagerCommand", "ep": "command", "key": ["ctrl_z"], "name": "undo"}], "type": "plugins/supported", "name": "undomanager"}, "rangeutils": {"testmodules": ["tests/test"], "type": "plugins/supported", "resourceURL": "resources/rangeutils/", "description": "Utility functions for dealing with ranges of text", "name": "rangeutils"}, "stylesheet": {"resourceURL": "resources/stylesheet/", "name": "stylesheet", "environments": {"worker": true}, "dependencies": {"standard_syntax": "0.0.0"}, "testmodules": [], "provides": [{"pointer": "#CSSSyntax", "ep": "syntax", "fileexts": ["css", "less"], "name": "css"}], "type": "plugins/supported", "description": "CSS syntax highlighter"}, "html": {"resourceURL": "resources/html/", "name": "html", "environments": {"worker": true}, "dependencies": {"standard_syntax": "0.0.0"}, "testmodules": [], "provides": [{"pointer": "#HTMLSyntax", "ep": "syntax", "fileexts": ["htm", "html"], "name": "html"}], "type": "plugins/supported", "description": "HTML syntax highlighter"}, "js_syntax": {"resourceURL": "resources/js_syntax/", "name": "js_syntax", "environments": {"worker": true}, "dependencies": {"standard_syntax": "0.0.0"}, "testmodules": [], "provides": [{"pointer": "#JSSyntax", "ep": "syntax", "fileexts": ["js", "json"], "name": "js"}], "type": "plugins/supported", "description": "JavaScript syntax highlighter"}, "ctags": {"resourceURL": "resources/ctags/", "description": "Reads and writes tag files", "dependencies": {"traits": "0.0.0", "underscore": "0.0.0"}, "testmodules": [], "type": "plugins/supported", "name": "ctags"}, "events": {"resourceURL": "resources/events/", "description": "Dead simple event implementation", "dependencies": {"traits": "0.0"}, "testmodules": ["tests/test"], "provides": [], "type": "plugins/supported", "name": "events"}, "theme_manager": {"resourceURL": "resources/theme_manager/", "name": "theme_manager", "share": true, "environments": {"main": true, "worker": false}, "dependencies": {"theme_manager_base": "0.0.0", "settings": "0.0.0", "events": "0.0.0", "less": "0.0.0"}, "testmodules": [], "provides": [{"unregister": "themestyles#unregisterThemeStyles", "register": "themestyles#registerThemeStyles", "ep": "extensionhandler", "name": "themestyles"}, {"unregister": "index#unregisterTheme", "register": "index#registerTheme", "ep": "extensionhandler", "name": "theme"}, {"defaultValue": "standard", "description": "The theme plugin's name to use. If set to 'standard' no theme will be used", "type": "text", "ep": "setting", "name": "theme"}, {"pointer": "#appLaunched", "ep": "appLaunched"}], "type": "plugins/supported", "description": "Handles colors in Bespin"}, "standard_syntax": {"resourceURL": "resources/standard_syntax/", "description": "Easy-to-use basis for syntax engines", "environments": {"worker": true}, "dependencies": {"syntax_worker": "0.0.0", "syntax_directory": "0.0.0", "underscore": "0.0.0"}, "testmodules": [], "type": "plugins/supported", "name": "standard_syntax"}, "types": {"resourceURL": "resources/types/", "description": "Defines parameter types for commands", "testmodules": ["tests/testBasic", "tests/testTypes"], "provides": [{"indexOn": "name", "description": "Commands can accept various arguments that the user enters or that are automatically supplied by the environment. Those arguments have types that define how they are supplied or completed. The pointer points to an object with methods convert(str value) and getDefault(). Both functions have `this` set to the command's `takes` parameter. If getDefault is not defined, the default on the command's `takes` is used, if there is one. The object can have a noInput property that is set to true to reflect that this type is provided directly by the system. getDefault must be defined in that case.", "ep": "extensionpoint", "name": "type"}, {"description": "Text that the user needs to enter.", "pointer": "basic#text", "ep": "type", "name": "text"}, {"description": "A JavaScript number", "pointer": "basic#number", "ep": "type", "name": "number"}, {"description": "A true/false value", "pointer": "basic#bool", "ep": "type", "name": "boolean"}, {"description": "An object that converts via JavaScript", "pointer": "basic#object", "ep": "type", "name": "object"}, {"description": "A string that is constrained to be one of a number of pre-defined values", "pointer": "basic#selection", "ep": "type", "name": "selection"}, {"description": "A type which we don't understand from the outset, but which we hope context can help us with", "ep": "type", "name": "deferred"}], "type": "plugins/supported", "name": "types"}, "jquery": {"testmodules": [], "resourceURL": "resources/jquery/", "name": "jquery", "type": "plugins/thirdparty"}, "embedded": {"testmodules": [], "dependencies": {"theme_manager": "0.0.0", "text_editor": "0.0.0", "appconfig": "0.0.0", "edit_session": "0.0.0", "screen_theme": "0.0.0"}, "resourceURL": "resources/embedded/", "name": "embedded", "type": "plugins/supported"}, "settings": {"resourceURL": "resources/settings/", "description": "Infrastructure and commands for managing user preferences", "share": true, "dependencies": {"types": "0.0"}, "testmodules": [], "provides": [{"description": "Storage for the customizable Bespin settings", "pointer": "index#settings", "ep": "appcomponent", "name": "settings"}, {"indexOn": "name", "description": "A setting is something that the application offers as a way to customize how it works", "register": "index#addSetting", "ep": "extensionpoint", "name": "setting"}, {"description": "A settingChange is a way to be notified of changes to a setting", "ep": "extensionpoint", "name": "settingChange"}, {"pointer": "commands#setCommand", "description": "define and show settings", "params": [{"defaultValue": null, "type": {"pointer": "settings:index#getSettings", "name": "selection"}, "name": "setting", "description": "The name of the setting to display or alter"}, {"defaultValue": null, "type": {"pointer": "settings:index#getTypeSpecFromAssignment", "name": "deferred"}, "name": "value", "description": "The new value for the chosen setting"}], "ep": "command", "name": "set"}, {"pointer": "commands#unsetCommand", "description": "unset a setting entirely", "params": [{"type": {"pointer": "settings:index#getSettings", "name": "selection"}, "name": "setting", "description": "The name of the setting to return to defaults"}], "ep": "command", "name": "unset"}], "type": "plugins/supported", "name": "settings"}, "appconfig": {"resourceURL": "resources/appconfig/", "description": "Instantiates components and displays the GUI based on configuration.", "dependencies": {"jquery": "0.0.0", "canon": "0.0.0", "settings": "0.0.0"}, "testmodules": [], "provides": [{"description": "Event: Fired when the app is completely launched.", "ep": "extensionpoint", "name": "appLaunched"}], "type": "plugins/supported", "name": "appconfig"}, "syntax_worker": {"resourceURL": "resources/syntax_worker/", "description": "Coordinates multiple syntax engines", "environments": {"worker": true}, "dependencies": {"syntax_directory": "0.0.0", "underscore": "0.0.0"}, "testmodules": [], "type": "plugins/supported", "name": "syntax_worker"}, "screen_theme": {"resourceURL": "resources/screen_theme/", "description": "Bespins standard theme basePlugin", "dependencies": {"theme_manager": "0.0.0"}, "testmodules": [], "provides": [{"url": ["theme.less"], "ep": "themestyles"}, {"defaultValue": "@global_font", "ep": "themevariable", "name": "container_font"}, {"defaultValue": "@global_font_size", "ep": "themevariable", "name": "container_font_size"}, {"defaultValue": "@global_container_background", "ep": "themevariable", "name": "container_bg"}, {"defaultValue": "@global_color", "ep": "themevariable", "name": "container_color"}, {"defaultValue": "@global_line_height", "ep": "themevariable", "name": "container_line_height"}, {"defaultValue": "@global_pane_background", "ep": "themevariable", "name": "pane_bg"}, {"defaultValue": "@global_pane_border_radius", "ep": "themevariable", "name": "pane_border_radius"}, {"defaultValue": "@global_form_font", "ep": "themevariable", "name": "form_font"}, {"defaultValue": "@global_form_font_size", "ep": "themevariable", "name": "form_font_size"}, {"defaultValue": "@global_form_line_height", "ep": "themevariable", "name": "form_line_height"}, {"defaultValue": "@global_form_color", "ep": "themevariable", "name": "form_color"}, {"defaultValue": "@global_form_text_shadow", "ep": "themevariable", "name": "form_text_shadow"}, {"defaultValue": "@global_pane_link_color", "ep": "themevariable", "name": "pane_a_color"}, {"defaultValue": "@global_font", "ep": "themevariable", "name": "pane_font"}, {"defaultValue": "@global_font_size", "ep": "themevariable", "name": "pane_font_size"}, {"defaultValue": "@global_pane_text_shadow", "ep": "themevariable", "name": "pane_text_shadow"}, {"defaultValue": "@global_pane_h1_font", "ep": "themevariable", "name": "pane_h1_font"}, {"defaultValue": "@global_pane_h1_font_size", "ep": "themevariable", "name": "pane_h1_font_size"}, {"defaultValue": "@global_pane_h1_color", "ep": "themevariable", "name": "pane_h1_color"}, {"defaultValue": "@global_font_size * 1.8", "ep": "themevariable", "name": "pane_line_height"}, {"defaultValue": "@global_pane_color", "ep": "themevariable", "name": "pane_color"}, {"defaultValue": "@global_text_shadow", "ep": "themevariable", "name": "pane_text_shadow"}, {"defaultValue": "@global_font", "ep": "themevariable", "name": "button_font"}, {"defaultValue": "@global_font_size", "ep": "themevariable", "name": "button_font_size"}, {"defaultValue": "@global_button_color", "ep": "themevariable", "name": "button_color"}, {"defaultValue": "@global_button_background", "ep": "themevariable", "name": "button_bg"}, {"defaultValue": "@button_bg - #063A27", "ep": "themevariable", "name": "button_bg2"}, {"defaultValue": "@button_bg - #194A5E", "ep": "themevariable", "name": "button_border"}, {"defaultValue": "@global_control_background", "ep": "themevariable", "name": "control_bg"}, {"defaultValue": "@global_control_color", "ep": "themevariable", "name": "control_color"}, {"defaultValue": "@global_control_border", "ep": "themevariable", "name": "control_border"}, {"defaultValue": "@global_control_border_radius", "ep": "themevariable", "name": "control_border_radius"}, {"defaultValue": "@global_control_active_background", "ep": "themevariable", "name": "control_active_bg"}, {"defaultValue": "@global_control_active_border", "ep": "themevariable", "name": "control_active_border"}, {"defaultValue": "@global_control_active_color", "ep": "themevariable", "name": "control_active_color"}, {"defaultValue": "@global_control_active_inset_color", "ep": "themevariable", "name": "control_active_inset_color"}], "type": "plugins/supported", "name": "screen_theme"}});;
+    bespin.tiki.require("bespin:plugins").catalog.registerMetadata({"text_editor": {"resourceURL": "resources/text_editor/", "description": "Canvas-based text editor component and many common editing commands", "dependencies": {"completion": "0.0.0", "undomanager": "0.0.0", "settings": "0.0.0", "canon": "0.0.0", "rangeutils": "0.0.0", "traits": "0.0.0", "theme_manager": "0.0.0", "keyboard": "0.0.0", "edit_session": "0.0.0", "syntax_manager": "0.0.0"}, "testmodules": ["tests/controllers/testLayoutmanager", "tests/models/testTextstorage", "tests/testScratchcanvas", "tests/utils/testRect"], "provides": [{"action": "new", "pointer": "views/editor#EditorView", "ep": "factory", "name": "text_editor"}, {"predicates": {"isTextView": true}, "pointer": "commands/editing#backspace", "ep": "command", "key": "backspace", "name": "backspace"}, {"predicates": {"isTextView": true}, "pointer": "commands/editing#deleteCommand", "ep": "command", "key": "delete", "name": "delete"}, {"description": "Delete all lines currently selected", "key": "ctrl_d", "predicates": {"isTextView": true}, "pointer": "commands/editing#deleteLines", "ep": "command", "name": "deletelines"}, {"description": "Create a new, empty line below the current one", "key": "ctrl_return", "predicates": {"isTextView": true}, "pointer": "commands/editing#openLine", "ep": "command", "name": "openline"}, {"description": "Join the current line with the following", "key": "ctrl_shift_j", "predicates": {"isTextView": true}, "pointer": "commands/editing#joinLines", "ep": "command", "name": "joinline"}, {"params": [{"defaultValue": "", "type": "text", "name": "text", "description": "The text to insert"}], "pointer": "commands/editing#insertText", "ep": "command", "name": "insertText"}, {"predicates": {"completing": false, "isTextView": true}, "pointer": "commands/editing#newline", "ep": "command", "key": "return", "name": "newline"}, {"predicates": {"completing": false, "isTextView": true}, "pointer": "commands/editing#tab", "ep": "command", "key": "tab", "name": "tab"}, {"predicates": {"isTextView": true}, "pointer": "commands/editing#untab", "ep": "command", "key": "shift_tab", "name": "untab"}, {"predicates": {"isTextView": true}, "ep": "command", "name": "move"}, {"description": "Repeat the last search (forward)", "pointer": "commands/editor#findNextCommand", "ep": "command", "key": "ctrl_g", "name": "findnext"}, {"description": "Repeat the last search (backward)", "pointer": "commands/editor#findPrevCommand", "ep": "command", "key": "ctrl_shift_g", "name": "findprev"}, {"predicates": {"completing": false, "isTextView": true}, "pointer": "commands/movement#moveDown", "ep": "command", "key": "down", "name": "move down"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveLeft", "ep": "command", "key": "left", "name": "move left"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveRight", "ep": "command", "key": "right", "name": "move right"}, {"predicates": {"completing": false, "isTextView": true}, "pointer": "commands/movement#moveUp", "ep": "command", "key": "up", "name": "move up"}, {"predicates": {"isTextView": true}, "ep": "command", "name": "select"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectDown", "ep": "command", "key": "shift_down", "name": "select down"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectLeft", "ep": "command", "key": "shift_left", "name": "select left"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectRight", "ep": "command", "key": "shift_right", "name": "select right"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectUp", "ep": "command", "key": "shift_up", "name": "select up"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveLineEnd", "ep": "command", "key": ["end", "ctrl_right"], "name": "move lineend"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectLineEnd", "ep": "command", "key": ["shift_end", "ctrl_shift_right"], "name": "select lineend"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveDocEnd", "ep": "command", "key": "ctrl_down", "name": "move docend"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectDocEnd", "ep": "command", "key": "ctrl_shift_down", "name": "select docend"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveLineStart", "ep": "command", "key": ["home", "ctrl_left"], "name": "move linestart"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectLineStart", "ep": "command", "key": ["shift_home", "ctrl_shift_left"], "name": "select linestart"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveDocStart", "ep": "command", "key": "ctrl_up", "name": "move docstart"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectDocStart", "ep": "command", "key": "ctrl_shift_up", "name": "select docstart"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#moveNextWord", "ep": "command", "key": ["alt_right"], "name": "move nextword"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectNextWord", "ep": "command", "key": ["alt_shift_right"], "name": "select nextword"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#movePreviousWord", "ep": "command", "key": ["alt_left"], "name": "move prevword"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectPreviousWord", "ep": "command", "key": ["alt_shift_left"], "name": "select prevword"}, {"predicates": {"isTextView": true}, "pointer": "commands/movement#selectAll", "ep": "command", "key": ["ctrl_a", "meta_a"], "name": "select all"}, {"predicates": {"isTextView": true}, "ep": "command", "name": "scroll"}, {"predicates": {"isTextView": true}, "pointer": "commands/scrolling#scrollDocStart", "ep": "command", "key": "ctrl_home", "name": "scroll start"}, {"predicates": {"isTextView": true}, "pointer": "commands/scrolling#scrollDocEnd", "ep": "command", "key": "ctrl_end", "name": "scroll end"}, {"predicates": {"isTextView": true}, "pointer": "commands/scrolling#scrollPageDown", "ep": "command", "key": "pagedown", "name": "scroll down"}, {"predicates": {"isTextView": true}, "pointer": "commands/scrolling#scrollPageUp", "ep": "command", "key": "pageup", "name": "scroll up"}, {"pointer": "commands/editor#lcCommand", "description": "Change all selected text to lowercase", "withKey": "CMD SHIFT L", "ep": "command", "name": "lc"}, {"pointer": "commands/editor#detabCommand", "description": "Convert tabs to spaces.", "params": [{"defaultValue": null, "type": "text", "name": "tabsize", "description": "Optionally, specify a tab size. (Defaults to setting.)"}], "ep": "command", "name": "detab"}, {"pointer": "commands/editor#entabCommand", "description": "Convert spaces to tabs.", "params": [{"defaultValue": null, "type": "text", "name": "tabsize", "description": "Optionally, specify a tab size. (Defaults to setting.)"}], "ep": "command", "name": "entab"}, {"pointer": "commands/editor#trimCommand", "description": "trim trailing or leading whitespace from each line in selection", "params": [{"defaultValue": "both", "type": {"data": [{"name": "left"}, {"name": "right"}, {"name": "both"}], "name": "selection"}, "name": "side", "description": "Do we trim from the left, right or both"}], "ep": "command", "name": "trim"}, {"pointer": "commands/editor#ucCommand", "description": "Change all selected text to uppercase", "withKey": "CMD SHIFT U", "ep": "command", "name": "uc"}, {"predicates": {"isTextView": true}, "pointer": "controllers/undo#undoManagerCommand", "ep": "command", "key": ["ctrl_shift_z"], "name": "redo"}, {"predicates": {"isTextView": true}, "pointer": "controllers/undo#undoManagerCommand", "ep": "command", "key": ["ctrl_z"], "name": "undo"}, {"description": "The distance in characters between each tab", "defaultValue": 8, "type": "number", "ep": "setting", "name": "tabstop"}, {"description": "Customize the keymapping", "defaultValue": "{}", "type": "text", "ep": "setting", "name": "customKeymapping"}, {"description": "The keymapping to use", "defaultValue": "standard", "type": "text", "ep": "setting", "name": "keymapping"}, {"description": "The editor font size in pixels", "defaultValue": 14, "type": "number", "ep": "setting", "name": "fontsize"}, {"description": "The editor font face", "defaultValue": "Monaco, Lucida Console, monospace", "type": "text", "ep": "setting", "name": "fontface"}, {"defaultValue": {"color": "#e5c138", "paddingLeft": 5, "backgroundColor": "#4c4a41", "paddingRight": 10}, "ep": "themevariable", "name": "gutter"}, {"defaultValue": {"color": "#e6e6e6", "selectedTextBackgroundColor": "#526da5", "backgroundColor": "#2a211c", "cursorColor": "#879aff", "unfocusedCursorBackgroundColor": "#73171e", "unfocusedCursorColor": "#ff0033"}, "ep": "themevariable", "name": "editor"}, {"defaultValue": {"comment": "#666666", "directive": "#999999", "keyword": "#42A8ED", "addition": "#FFFFFF", "plain": "#e6e6e6", "module": "#BA4946", "specialmodule": "#C741BB", "builtin": "#307BAD", "deletion": "#FFFFFF", "error": "#ff0000", "operator": "#88BBFF", "identifier": "#D841FF", "string": "#039A0A"}, "ep": "themevariable", "name": "highlighterFG"}, {"defaultValue": {"addition": "#008000", "deletion": "#800000"}, "ep": "themevariable", "name": "highlighterBG"}, {"defaultValue": {"nibStrokeStyle": "rgb(150, 150, 150)", "fullAlpha": 1.0, "barFillStyle": "rgb(0, 0, 0)", "particalAlpha": 0.29999999999999999, "barFillGradientBottomStop": "rgb(44, 44, 44)", "backgroundStyle": "#2A211C", "thickness": 17, "padding": 5, "trackStrokeStyle": "rgb(150, 150, 150)", "nibArrowStyle": "rgb(255, 255, 255)", "barFillGradientBottomStart": "rgb(22, 22, 22)", "barFillGradientTopStop": "rgb(40, 40, 40)", "barFillGradientTopStart": "rgb(90, 90, 90)", "nibStyle": "rgb(100, 100, 100)", "trackFillStyle": "rgba(50, 50, 50, 0.8)"}, "ep": "themevariable", "name": "scroller"}, {"description": "Event: Notify when something within the editor changed.", "params": [{"required": true, "name": "pointer", "description": "Function that is called whenever a change happened."}], "ep": "extensionpoint", "name": "editorChange"}, {"description": "Decoration for the gutter", "ep": "extensionpoint", "name": "gutterDecoration"}, {"description": "Line number decoration for the gutter", "pointer": "views/gutter#lineNumbers", "ep": "gutterDecoration", "name": "lineNumbers"}], "type": "plugins/supported", "name": "text_editor"}, "less": {"resourceURL": "resources/less/", "description": "Leaner CSS", "contributors": [], "author": "Alexis Sellier <self@cloudhead.net>", "url": "http://lesscss.org", "version": "1.0.11", "dependencies": {}, "testmodules": [], "provides": [], "keywords": ["css", "parser", "lesscss", "browser"], "type": "plugins/thirdparty", "name": "less"}, "theme_manager_base": {"resourceURL": "resources/theme_manager_base/", "name": "theme_manager_base", "share": true, "environments": {"main": true}, "dependencies": {}, "testmodules": [], "provides": [{"description": "(Less)files holding the CSS style information for the UI.", "params": [{"required": true, "name": "url", "description": "Name of the ThemeStylesFile - can also be an array of files."}], "ep": "extensionpoint", "name": "themestyles"}, {"description": "Event: Notify when the theme(styles) changed.", "params": [{"required": true, "name": "pointer", "description": "Function that is called whenever the theme is changed."}], "ep": "extensionpoint", "name": "themeChange"}, {"indexOn": "name", "description": "A theme is a way change the look of the application.", "params": [{"required": false, "name": "url", "description": "Name of a ThemeStylesFile that holds theme specific CSS rules - can also be an array of files."}, {"required": true, "name": "pointer", "description": "Function that returns the ThemeData"}], "ep": "extensionpoint", "name": "theme"}], "type": "plugins/supported", "description": "Defines extension points required for theming"}, "canon": {"resourceURL": "resources/canon/", "name": "canon", "environments": {"main": true, "worker": false}, "dependencies": {"environment": "0.0.0", "events": "0.0.0", "settings": "0.0.0"}, "testmodules": [], "provides": [{"indexOn": "name", "description": "A command is a bit of functionality with optional typed arguments which can do something small like moving the cursor around the screen, or large like cloning a project from VCS.", "ep": "extensionpoint", "name": "command"}, {"description": "An extension point to be called whenever a new command begins output.", "ep": "extensionpoint", "name": "addedRequestOutput"}, {"description": "A dimensionsChanged is a way to be notified of changes to the dimension of Bespin", "ep": "extensionpoint", "name": "dimensionsChanged"}, {"description": "How many typed commands do we recall for reference?", "defaultValue": 50, "type": "number", "ep": "setting", "name": "historyLength"}, {"action": "create", "pointer": "history#InMemoryHistory", "ep": "factory", "name": "history"}], "type": "plugins/supported", "description": "Manages commands"}, "traits": {"resourceURL": "resources/traits/", "description": "Traits library, traitsjs.org", "dependencies": {}, "testmodules": [], "provides": [], "type": "plugins/thirdparty", "name": "traits"}, "keyboard": {"resourceURL": "resources/keyboard/", "description": "Keyboard shortcuts", "dependencies": {"canon": "0.0", "settings": "0.0"}, "testmodules": ["tests/testKeyboard"], "provides": [{"description": "A keymapping defines how keystrokes are interpreted.", "params": [{"required": true, "name": "states", "description": "Holds the states and all the informations about the keymapping. See docs: pluginguide/keymapping"}], "ep": "extensionpoint", "name": "keymapping"}], "type": "plugins/supported", "name": "keyboard"}, "worker_manager": {"resourceURL": "resources/worker_manager/", "description": "Manages a web worker on the browser side", "dependencies": {"canon": "0.0.0", "events": "0.0.0", "underscore": "0.0.0"}, "testmodules": [], "provides": [{"description": "Low-level web worker control (for plugin development)", "ep": "command", "name": "worker"}, {"description": "Restarts all web workers (for plugin development)", "pointer": "#workerRestartCommand", "ep": "command", "name": "worker restart"}], "type": "plugins/supported", "name": "worker_manager"}, "edit_session": {"resourceURL": "resources/edit_session/", "description": "Ties together the files being edited with the views on screen", "dependencies": {"events": "0.0.0"}, "testmodules": ["tests/testSession"], "provides": [{"action": "call", "pointer": "#createSession", "ep": "factory", "name": "session"}], "type": "plugins/supported", "name": "edit_session"}, "syntax_manager": {"resourceURL": "resources/syntax_manager/", "name": "syntax_manager", "environments": {"main": true, "worker": false}, "dependencies": {"worker_manager": "0.0.0", "syntax_directory": "0.0.0", "events": "0.0.0", "underscore": "0.0.0", "settings": "0.0.0"}, "testmodules": [], "provides": [], "type": "plugins/supported", "description": "Provides syntax highlighting services for the editor"}, "completion": {"resourceURL": "resources/completion/", "description": "Code completion support", "dependencies": {"jquery": "0.0.0", "ctags": "0.0.0", "rangeutils": "0.0.0", "canon": "0.0.0", "underscore": "0.0.0"}, "testmodules": [], "provides": [{"indexOn": "name", "description": "Code completion support for specific languages", "ep": "extensionpoint", "name": "completion"}, {"description": "Accept the chosen completion", "key": ["return", "tab"], "predicates": {"completing": true}, "pointer": "controller#completeCommand", "ep": "command", "name": "complete"}, {"description": "Abandon the completion", "key": "escape", "predicates": {"completing": true}, "pointer": "controller#completeCancelCommand", "ep": "command", "name": "complete cancel"}, {"description": "Choose the completion below", "key": "down", "predicates": {"completing": true}, "pointer": "controller#completeDownCommand", "ep": "command", "name": "complete down"}, {"description": "Choose the completion above", "key": "up", "predicates": {"completing": true}, "pointer": "controller#completeUpCommand", "ep": "command", "name": "complete up"}], "type": "plugins/supported", "name": "completion"}, "environment": {"testmodules": [], "dependencies": {"settings": "0.0.0"}, "resourceURL": "resources/environment/", "name": "environment", "type": "plugins/supported"}, "undomanager": {"resourceURL": "resources/undomanager/", "description": "Manages undoable events", "testmodules": ["tests/testUndomanager"], "provides": [{"pointer": "#undoManagerCommand", "ep": "command", "key": ["ctrl_shift_z"], "name": "redo"}, {"pointer": "#undoManagerCommand", "ep": "command", "key": ["ctrl_z"], "name": "undo"}], "type": "plugins/supported", "name": "undomanager"}, "rangeutils": {"testmodules": ["tests/test"], "type": "plugins/supported", "resourceURL": "resources/rangeutils/", "description": "Utility functions for dealing with ranges of text", "name": "rangeutils"}, "stylesheet": {"resourceURL": "resources/stylesheet/", "name": "stylesheet", "environments": {"worker": true}, "dependencies": {"standard_syntax": "0.0.0"}, "testmodules": [], "provides": [{"pointer": "#CSSSyntax", "ep": "syntax", "fileexts": ["css", "less"], "name": "css"}], "type": "plugins/supported", "description": "CSS syntax highlighter"}, "html": {"resourceURL": "resources/html/", "name": "html", "environments": {"worker": true}, "dependencies": {"standard_syntax": "0.0.0"}, "testmodules": [], "provides": [{"pointer": "#HTMLSyntax", "ep": "syntax", "fileexts": ["htm", "html"], "name": "html"}], "type": "plugins/supported", "description": "HTML syntax highlighter"}, "js_syntax": {"resourceURL": "resources/js_syntax/", "name": "js_syntax", "environments": {"worker": true}, "dependencies": {"standard_syntax": "0.0.0", "settings": "0.0.0"}, "testmodules": [], "provides": [{"settings": ["specialmodules"], "pointer": "#JSSyntax", "ep": "syntax", "fileexts": ["js", "json"], "name": "js"}, {"description": "Regex that matches special modules", "defaultValue": "^jetpack\\.[^\"']+", "type": "text", "ep": "setting", "name": "specialmodules"}], "type": "plugins/supported", "description": "JavaScript syntax highlighter"}, "ctags": {"resourceURL": "resources/ctags/", "description": "Reads and writes tag files", "dependencies": {"traits": "0.0.0", "underscore": "0.0.0"}, "testmodules": [], "type": "plugins/supported", "name": "ctags"}, "events": {"resourceURL": "resources/events/", "description": "Dead simple event implementation", "dependencies": {"traits": "0.0"}, "testmodules": ["tests/test"], "provides": [], "type": "plugins/supported", "name": "events"}, "theme_manager": {"resourceURL": "resources/theme_manager/", "name": "theme_manager", "share": true, "environments": {"main": true, "worker": false}, "dependencies": {"theme_manager_base": "0.0.0", "settings": "0.0.0", "events": "0.0.0", "less": "0.0.0"}, "testmodules": [], "provides": [{"unregister": "themestyles#unregisterThemeStyles", "register": "themestyles#registerThemeStyles", "ep": "extensionhandler", "name": "themestyles"}, {"unregister": "index#unregisterTheme", "register": "index#registerTheme", "ep": "extensionhandler", "name": "theme"}, {"defaultValue": "standard", "description": "The theme plugin's name to use. If set to 'standard' no theme will be used", "type": "text", "ep": "setting", "name": "theme"}, {"pointer": "#appLaunched", "ep": "appLaunched"}], "type": "plugins/supported", "description": "Handles colors in Bespin"}, "whitetheme": {"resourceURL": "resources/whitetheme/", "description": "Provides a white theme for Bespin", "dependencies": {"theme_manager": "0.0.0"}, "testmodules": [], "provides": [{"url": ["theme.less"], "description": "A basic white theme", "pointer": "index#whiteTheme", "ep": "theme", "name": "white"}], "type": "plugins/supported", "name": "whitetheme"}, "standard_syntax": {"resourceURL": "resources/standard_syntax/", "description": "Easy-to-use basis for syntax engines", "environments": {"worker": true}, "dependencies": {"syntax_worker": "0.0.0", "syntax_directory": "0.0.0", "underscore": "0.0.0"}, "testmodules": [], "type": "plugins/supported", "name": "standard_syntax"}, "jquery": {"testmodules": [], "resourceURL": "resources/jquery/", "name": "jquery", "type": "plugins/thirdparty"}, "embedded": {"testmodules": [], "dependencies": {"theme_manager": "0.0.0", "text_editor": "0.0.0", "appconfig": "0.0.0", "edit_session": "0.0.0", "screen_theme": "0.0.0"}, "resourceURL": "resources/embedded/", "name": "embedded", "type": "plugins/supported"}, "appconfig": {"resourceURL": "resources/appconfig/", "description": "Instantiates components and displays the GUI based on configuration.", "dependencies": {"jquery": "0.0.0", "canon": "0.0.0", "underscore": "0.0.0", "settings": "0.0.0"}, "testmodules": [], "provides": [{"description": "Event: Fired when the app is completely launched.", "ep": "extensionpoint", "name": "appLaunched"}], "type": "plugins/supported", "name": "appconfig"}, "syntax_worker": {"resourceURL": "resources/syntax_worker/", "description": "Coordinates multiple syntax engines", "environments": {"worker": true}, "dependencies": {"syntax_directory": "0.0.0", "underscore": "0.0.0"}, "testmodules": [], "type": "plugins/supported", "name": "syntax_worker"}, "screen_theme": {"resourceURL": "resources/screen_theme/", "description": "Bespins standard theme basePlugin", "dependencies": {"theme_manager": "0.0.0"}, "testmodules": [], "provides": [{"url": ["theme.less"], "ep": "themestyles"}, {"defaultValue": "@global_font", "ep": "themevariable", "name": "container_font"}, {"defaultValue": "@global_font_size", "ep": "themevariable", "name": "container_font_size"}, {"defaultValue": "@global_container_background", "ep": "themevariable", "name": "container_bg"}, {"defaultValue": "@global_color", "ep": "themevariable", "name": "container_color"}, {"defaultValue": "@global_line_height", "ep": "themevariable", "name": "container_line_height"}, {"defaultValue": "@global_pane_background", "ep": "themevariable", "name": "pane_bg"}, {"defaultValue": "@global_pane_border_radius", "ep": "themevariable", "name": "pane_border_radius"}, {"defaultValue": "@global_form_font", "ep": "themevariable", "name": "form_font"}, {"defaultValue": "@global_form_font_size", "ep": "themevariable", "name": "form_font_size"}, {"defaultValue": "@global_form_line_height", "ep": "themevariable", "name": "form_line_height"}, {"defaultValue": "@global_form_color", "ep": "themevariable", "name": "form_color"}, {"defaultValue": "@global_form_text_shadow", "ep": "themevariable", "name": "form_text_shadow"}, {"defaultValue": "@global_pane_link_color", "ep": "themevariable", "name": "pane_a_color"}, {"defaultValue": "@global_font", "ep": "themevariable", "name": "pane_font"}, {"defaultValue": "@global_font_size", "ep": "themevariable", "name": "pane_font_size"}, {"defaultValue": "@global_pane_text_shadow", "ep": "themevariable", "name": "pane_text_shadow"}, {"defaultValue": "@global_pane_h1_font", "ep": "themevariable", "name": "pane_h1_font"}, {"defaultValue": "@global_pane_h1_font_size", "ep": "themevariable", "name": "pane_h1_font_size"}, {"defaultValue": "@global_pane_h1_color", "ep": "themevariable", "name": "pane_h1_color"}, {"defaultValue": "@global_font_size * 1.8", "ep": "themevariable", "name": "pane_line_height"}, {"defaultValue": "@global_pane_color", "ep": "themevariable", "name": "pane_color"}, {"defaultValue": "@global_text_shadow", "ep": "themevariable", "name": "pane_text_shadow"}, {"defaultValue": "@global_font", "ep": "themevariable", "name": "button_font"}, {"defaultValue": "@global_font_size", "ep": "themevariable", "name": "button_font_size"}, {"defaultValue": "@global_button_color", "ep": "themevariable", "name": "button_color"}, {"defaultValue": "@global_button_background", "ep": "themevariable", "name": "button_bg"}, {"defaultValue": "@button_bg - #063A27", "ep": "themevariable", "name": "button_bg2"}, {"defaultValue": "@button_bg - #194A5E", "ep": "themevariable", "name": "button_border"}, {"defaultValue": "@global_control_background", "ep": "themevariable", "name": "control_bg"}, {"defaultValue": "@global_control_color", "ep": "themevariable", "name": "control_color"}, {"defaultValue": "@global_control_border", "ep": "themevariable", "name": "control_border"}, {"defaultValue": "@global_control_border_radius", "ep": "themevariable", "name": "control_border_radius"}, {"defaultValue": "@global_control_active_background", "ep": "themevariable", "name": "control_active_bg"}, {"defaultValue": "@global_control_active_border", "ep": "themevariable", "name": "control_active_border"}, {"defaultValue": "@global_control_active_color", "ep": "themevariable", "name": "control_active_color"}, {"defaultValue": "@global_control_active_inset_color", "ep": "themevariable", "name": "control_active_inset_color"}], "type": "plugins/supported", "name": "screen_theme"}});;
 });
 })();
 /* ***** BEGIN LICENSE BLOCK *****
@@ -20181,7 +19564,13 @@ $(document).ready(function() {
 
 (function() {
 
+var Promise = bespin.tiki.require('bespin:promise').Promise;
+var group = bespin.tiki.require("bespin:promise").group;
 var $ = bespin.tiki.require("jquery").$;
+
+bespin.loaded = new Promise();
+bespin.initialized = new Promise();
+
 /**
  * Returns the CSS property of element.
  *   1) If the CSS property is on the style object of the element, use it, OR
@@ -20201,29 +19590,6 @@ var getCSSProperty = function(element, container, property) {
     }
     return ret;
 };
-
-/**
- * Returns the sum of all passed property values. Calls internal getCSSProperty
- * to get the value of the individual peroperties.
-  */
-// var sumCSSProperties = function(element, container, props) {
-//     var ret = document.defaultView.getComputedStyle(element, '').
-//                                         getPropertyValue(props[0]);
-//
-//     if (!ret || ret == 'auto' || ret == 'intrinsic') {
-//         return container.style[props[0]];
-//     }
-//
-//     var sum = props.map(function(item) {
-//         var cssProp = getCSSProperty(element, container, item);
-//         // Remove the 'px; and parse the property to a floating point.
-//         return parseFloat(cssProp.replace('px', ''));
-//     }).reduce(function(a, b) {
-//         return a + b;
-//     });
-//
-//     return sum;
-// };
 
 bespin.useBespin = function(element, options) {
     var util = bespin.tiki.require('bespin:util/util');
@@ -20245,7 +19611,6 @@ bespin.useBespin = function(element, options) {
         }
     }
 
-    var Promise = bespin.tiki.require('bespin:promise').Promise;
     var prEnv = null;
     var pr = new Promise();
 
@@ -20302,12 +19667,6 @@ bespin.useBespin = function(element, options) {
 
                 // The complete width is the width of the textarea + the padding
                 // to the left and right.
-                // var width = sumCSSProperties(element, container, [
-                //     'width', 'padding-left', 'padding-right'
-                // ]) + 'px';
-                // var height = sumCSSProperties(element, container, [
-                //     'height', 'padding-top', 'padding-bottom'
-                // ]) + 'px';
                 var width = getCSSProperty(element, container, 'width');
                 var height = getCSSProperty(element, container, 'height');
                 style += 'height:' + height + ';width:' + width + ';';
@@ -20374,6 +19733,9 @@ bespin.useBespin = function(element, options) {
 };
 
 $(document).ready(function() {
+    // Bespin is now ready to use.
+    bespin.loaded.resolve();
+
     // Holds the lauch promises of all launched Bespins.
     var launchBespinPromises = [];
 
@@ -20390,19 +19752,17 @@ $(document).ready(function() {
         launchBespinPromises.push(pr);
     }
 
-    // If users want a custom startup
-    if (window.onBespinLoad) {
-        // group-promise function.
-        var group = bespin.tiki.require("bespin:promise").group;
-
-        // Call the window.onBespinLoad() function after all launched Bespins
-        // are ready or throw an error otherwise.
-        group(launchBespinPromises).then(function() {
-            window.onBespinLoad();
-        }, function() {
-            throw new Error('At least one Bespin failed to launch!');
-        });
-    }
+    // Call the window.onBespinLoad() function after all launched Bespins
+    // are ready or throw an error otherwise.
+    group(launchBespinPromises).then(function() {
+        bespin.initialized.resolve();
+        // If users want a custom startup.
+        if (window.onBespinLoad) {
+          window.onBespinLoad();
+        }
+    }, function(err) {
+        bespin.initialized.reject('At least one Bespin failed to launch!' + err);
+    });
 });
 
 })();

@@ -50,6 +50,7 @@ var syntaxDirectory = require('syntax_directory').syntaxDirectory;
 
 var syntaxWorker = {
     engines: {},
+    settings: {},
 
     annotate: function(state, lines, range) {
         function splitParts(str) { return str.split(":"); }
@@ -140,6 +141,13 @@ var syntaxWorker = {
         info.extension.load().then(function(engine) {
             engines[syntaxName] = engine;
 
+            if (info.settings != null) {
+                engine.settings = {};
+                info.settings.forEach(function(name) {
+                    engine.settings[name] = this.settings[name];
+                }, this);
+            }
+
             var subsyntaxes = engine.subsyntaxes;
             if (subsyntaxes == null) {
                 pr.resolve();
@@ -151,6 +159,11 @@ var syntaxWorker = {
         }.bind(this));
 
         return pr;
+    },
+
+    setSyntaxSetting: function(name, value) {
+        this.settings[name] = value;
+        return true;
     }
 };
 

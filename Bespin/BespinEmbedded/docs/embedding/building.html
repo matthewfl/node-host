@@ -164,13 +164,12 @@ It will be rebuilt each time you reload the page.</p>
 <p>Run "dryice -h" for up-to-date usage information.</p>
 <p>Generally speaking, using dryice is just a matter of pointing the tool at
 your manifest file, which describes what needs to be built.</p>
-<p>After the JavaScript and CSS are generated, you will likely want to compress 
+<p>After the JavaScript files are generated, you will likely want to compress 
 those files for faster loading over the internet. dryice can do this for
-you, using the Closure Compiler for the JavaScript and YUI Compressor for
-the CSS. These are both included in the Customizable package in the
-"compressors" directory. To activate dryice compression, run a command like
-this one:</p>
-<div class="codehilite"><pre><span class="n">dryice</span> <span class="o">-</span><span class="n">j</span> <span class="n">compressors</span><span class="sr">/compiler.jar -c compressors/</span><span class="n">yuicompressor</span><span class="o">.</span><span class="n">jar</span> <span class="n">MANIFEST</span><span class="o">.</span><span class="n">JSON</span>
+you, using the Closure Compiler for the JavaScript. Thise is included in the
+in the "compressors" directory. To activate dryice compression, run a 
+command like this one:</p>
+<div class="codehilite"><pre><span class="n">dryice</span> <span class="o">-</span><span class="n">j</span> <span class="n">compressors</span><span class="o">/</span><span class="n">compiler</span><span class="o">.</span><span class="n">jar</span> <span class="n">MANIFEST</span><span class="o">.</span><span class="n">JSON</span>
 </pre></div>
 
 
@@ -199,6 +198,7 @@ that you want to include that literally in the parameter to the command.</p>
 <li><a href="index.html">Introduction</a></li>
 <li><a href="building.html">Creating a Custom, Embedded Bespin</a></li>
 <li><a href="appconfig.html">Application Configuration</a></li>
+<li><a href="installing.html">Installing Plugins</a></li>
 </ul>
 
 

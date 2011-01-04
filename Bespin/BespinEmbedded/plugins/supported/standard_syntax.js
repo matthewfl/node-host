@@ -55,6 +55,8 @@ var syntaxDirectory = require('syntax_directory').syntaxDirectory;
 exports.StandardSyntax = function(states, subsyntaxes) {
     this.states = states;
     this.subsyntaxes = subsyntaxes;
+
+    this.settings = {};
 };
 
 /** This syntax controller exposes a simple regex- and line-based parser. */
@@ -71,7 +73,13 @@ exports.StandardSyntax.prototype = {
 
         var result = null;
         _(this.states[state]).each(function(alt) {
-            var regex = alt.regex;
+            var regex;
+            if (alt.regexSetting != null) {
+                regex = new RegExp(this.settings[alt.regexSetting]);
+            } else {
+                regex = alt.regex;
+            }
+
             var match = regex.exec(str);
             if (match == null) {
                 return;
@@ -109,7 +117,7 @@ exports.StandardSyntax.prototype = {
             }
 
             _.breakLoop();
-        });
+        }, this);
 
         return result;
     }

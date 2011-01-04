@@ -56,6 +56,7 @@ function SyntaxInfo(ext) {
     this.extension = ext;
     this.name = ext.name;
     this.fileExts = ext.hasOwnProperty('fileexts') ? ext.fileexts : [];
+    this.settings = ext.settings != null ? ext.settings : [];
 }
 
 /**

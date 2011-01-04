@@ -42,7 +42,13 @@
 
 (function() {
 
+var Promise = bespin.tiki.require('bespin:promise').Promise;
+var group = bespin.tiki.require("bespin:promise").group;
 var $ = bespin.tiki.require("jquery").$;
+
+bespin.loaded = new Promise();
+bespin.initialized = new Promise();
+
 /**
  * Returns the CSS property of element.
  *   1) If the CSS property is on the style object of the element, use it, OR
@@ -62,29 +68,6 @@ var getCSSProperty = function(element, container, property) {
     }
     return ret;
 };
-
-/**
- * Returns the sum of all passed property values. Calls internal getCSSProperty
- * to get the value of the individual peroperties.
-  */
-// var sumCSSProperties = function(element, container, props) {
-//     var ret = document.defaultView.getComputedStyle(element, '').
-//                                         getPropertyValue(props[0]);
-//
-//     if (!ret || ret == 'auto' || ret == 'intrinsic') {
-//         return container.style[props[0]];
-//     }
-//
-//     var sum = props.map(function(item) {
-//         var cssProp = getCSSProperty(element, container, item);
-//         // Remove the 'px; and parse the property to a floating point.
-//         return parseFloat(cssProp.replace('px', ''));
-//     }).reduce(function(a, b) {
-//         return a + b;
-//     });
-//
-//     return sum;
-// };
 
 bespin.useBespin = function(element, options) {
     var util = bespin.tiki.require('bespin:util/util');
@@ -106,7 +89,6 @@ bespin.useBespin = function(element, options) {
         }
     }
 
-    var Promise = bespin.tiki.require('bespin:promise').Promise;
     var prEnv = null;
     var pr = new Promise();
 
@@ -163,12 +145,6 @@ bespin.useBespin = function(element, options) {
 
                 // The complete width is the width of the textarea + the padding
                 // to the left and right.
-                // var width = sumCSSProperties(element, container, [
-                //     'width', 'padding-left', 'padding-right'
-                // ]) + 'px';
-                // var height = sumCSSProperties(element, container, [
-                //     'height', 'padding-top', 'padding-bottom'
-                // ]) + 'px';
                 var width = getCSSProperty(element, container, 'width');
                 var height = getCSSProperty(element, container, 'height');
                 style += 'height:' + height + ';width:' + width + ';';
@@ -235,6 +211,9 @@ bespin.useBespin = function(element, options) {
 };
 
 $(document).ready(function() {
+    // Bespin is now ready to use.
+    bespin.loaded.resolve();
+
     // Holds the lauch promises of all launched Bespins.
     var launchBespinPromises = [];
 
@@ -251,19 +230,17 @@ $(document).ready(function() {
         launchBespinPromises.push(pr);
     }
 
-    // If users want a custom startup
-    if (window.onBespinLoad) {
-        // group-promise function.
-        var group = bespin.tiki.require("bespin:promise").group;
-
-        // Call the window.onBespinLoad() function after all launched Bespins
-        // are ready or throw an error otherwise.
-        group(launchBespinPromises).then(function() {
-            window.onBespinLoad();
-        }, function() {
-            throw new Error('At least one Bespin failed to launch!');
-        });
-    }
+    // Call the window.onBespinLoad() function after all launched Bespins
+    // are ready or throw an error otherwise.
+    group(launchBespinPromises).then(function() {
+        bespin.initialized.resolve();
+        // If users want a custom startup.
+        if (window.onBespinLoad) {
+          window.onBespinLoad();
+        }
+    }, function(err) {
+        bespin.initialized.reject('At least one Bespin failed to launch!' + err);
+    });
 });
 
 })();
