@@ -16,9 +16,11 @@ function builder (code, user, Fname, back) {
 builder.prototype.compiler = function (code, name, root) {
     var self=this;
     function done (code) {
-	console.log(code);
 	self.require(code);
-	self.code[root === true ? "_" : name] = jsmin("",code,1);
+	try {    
+	    code = jsmin("",code,1);
+	}catch(e){ console.log(code); }
+	self.code[root === true ? "_" : name] = code;
 	self.count();
     }
     try {
@@ -101,7 +103,6 @@ builder.prototype.searcher = function (name) {
 	    if(this.pub[user].indexOf(file) != -1) {
 		(function (name, self) {
 		    db.get("fs_"+user+"_"+file, function (code) {
-			console.log(code)
 			if(code)
 			    self.compiler(code,name);
 			else {
