@@ -25,4 +25,7 @@ exports.dbPort='/tmp/tyrant';
 exports.dbHost="";
 exports.dbSyncTime=10*1000;
 
-exports.deleteDomainFile="/home/matthew/jsapp_delete_domain"; // change this to some place that you can write to
+exports.deleteDomainFile=process.env.PWD"/../jsapp_delete_domain"; // change this to some place that you can write to
+
+exports.gitDirPath = process.env.PWD +"/../jsapp_remote_git";
+exports.gitLockFile = process.env.PWD +"/../jsapp_git_lock";
