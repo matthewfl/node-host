@@ -4,3 +4,6 @@
 [submodule "sandbox/compilers/coffee"]
 	path = sandbox/compilers/coffee
 	url = git://github.com/jashkenas/coffee-script.git
+[submodule "lib/npm"]
+	path = lib/npm
+	url = https://github.com/isaacs/npm.git
