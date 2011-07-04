@@ -1,18 +1,30 @@
 <html>
   <head>
     <title>Live console</title>
-    <script src="http://static.test.jsapp.us:7654/socket.io/socket.io.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <script>
+var hostSet=0;
 var socket = io.connect('http://'+location.host);
 socket.on('message', function (data) {
-document.body.innerHTML += data;
 clearInterval(hostSet);
+document.body.innerHTML += data;
 });
-document.title += " "+location.host.split(":")[0];
+function setHost () {
+host = location.hash.substring(location.hash.indexOf("//")+2);
+document.title = "Live console for "+host;
 // even sending this once the connect event fired, worked maybe 10% of the time
+clearInterval(hostSet);
 hostSet = setInterval(function () {
-socket.send(location.host.split(":")[0]);
+socket.send(host);
 }, 500);
+}
+var lastHash;
+setInterval(function () {
+if(lastHash!=location.hash) {
+setHost();
+lastHash=location.hash;
+}
+}, 200);
     </script>
   </head>
   <body>

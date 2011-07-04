@@ -324,9 +324,13 @@ exports.saveCommand = function (args, request) {
 	fileList.push(loadFile);
 };
 
+//var console_win;
+
 exports.testCommand = function (args, request) {
     // this seems to work with better with popup blockers
-    var win = window.open("");
+    var win = window.open("", "DEMO");
+    if(typeof console_win == "undefined" || console_win.closed)
+	console_win = window.open("http://console.test.jsapp.us:7654", "CONSOLE", "status=0,toolbar=0,location=0,menubar=0,directories=0,width=275,height=500,scrollbars=1");
     Ajax.Call({
 	"action": "test",
 	"code": env.editor.value,
@@ -334,6 +338,11 @@ exports.testCommand = function (args, request) {
 	"fileName": loadFile
     }, function (p) {
 	win.location.href=p;
+	try {
+	    setTimeout(function () {
+		console_win.location.hash=p;
+	    }, 500);
+	}catch(e) {alert(e)}
     });
     Ajax.send();
     track("test");

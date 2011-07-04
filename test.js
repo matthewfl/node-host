@@ -5,6 +5,7 @@ var sandbox = require('./sandbox');
 
 var io = require('./lib/socket.io');
 var fs = require('fs');
+var format = require('./lib/format').format;
 var EventEmitter = require('events').EventEmitter;
 
 var ErrorEmitter = new EventEmitter();
@@ -45,12 +46,11 @@ var server = http.createServer(function (req, res) {
 		    tmp_db=boxes[name].config._tmp_db;
 		}
 		boxes[name] = new sandbox.SandBox(d, {test: true, user: urlInfo.query.user || null, name: urlInfo.query.fileName || null, _tmp_db: tmp_db, 
-						      error: function (e) {
-							  ErrorEmitter.emit(name, e);
+						      error: function () {
+							  ErrorEmitter.emit(name, format.apply(this, arguments));
 						      },
-						      log: function (l) {
-							  console.log("emmiting event", name);
-							  LogEmitter.emit(name, l);
+						      log: function () {
+							  LogEmitter.emit(name, format.apply(this, arguments));
 						      }
 						     });
 		boxes[name]._timer = setTimeout(function () {
@@ -104,13 +104,17 @@ io.sockets.on('connection', function (socket) {
 	}
     });
     socket.on('message',  function (data) {
-	if(host) return;
+	console.log("=========================================",data);
+	if(host) {
+	    ErrorEmitter.removeListener(host, error_send);
+	    LogEmitter.removeListener(host, log_send);
+	}
 	host = data;
-	console.log("setting up event", host);
 	ErrorEmitter.on(host, error_send);
 	LogEmitter.on(host, log_send);
-	socket.send("connected to: "+data);
+	socket.send("Connected to: "+data+"<br>");
     });
+    socket.send("Connected to console");
 });
 
 server.listen(config.testPort);
