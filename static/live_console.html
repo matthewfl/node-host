@@ -1,0 +1,20 @@
+<html>
+  <head>
+    <title>Live console</title>
+    <script src="http://static.test.jsapp.us:7654/socket.io/socket.io.js"></script>
+    <script>
+var socket = io.connect('http://'+location.host);
+socket.on('message', function (data) {
+document.body.innerHTML += data;
+clearInterval(hostSet);
+});
+document.title += " "+location.host.split(":")[0];
+// even sending this once the connect event fired, worked maybe 10% of the time
+hostSet = setInterval(function () {
+socket.send(location.host.split(":")[0]);
+}, 500);
+    </script>
+  </head>
+  <body>
+  </body>
+</html>

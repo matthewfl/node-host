@@ -51,7 +51,7 @@ function SandBox (code, config) {
 	clearInterval: clearInterval,
 	
 	debug: console.log,
-	console: {log: nothing, info: nothing, warn: nothing, error: nothing, dir: nothing, time: nothing, timeEnd: nothing, trace: nothing, assert: function (a) { if(!a) throw "assert"; } }
+	console: {log: self.config.log, info: self.config.log, warn: self.config.log, error: self.config.error, dir: nothing, time: nothing, timeEnd: nothing, trace: nothing, assert: function (a) { if(!a) throw "assert"; } }
     };
     try {
 	Script.runInNewContext(prefixBase + "(function () { "+code._+" })();", this.context, "main");

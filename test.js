@@ -3,6 +3,14 @@ var urlParse = require('url').parse;
 var config = require('./config');
 var sandbox = require('./sandbox');
 
+var io = require('./lib/socket.io');
+var fs = require('fs');
+var EventEmitter = require('events').EventEmitter;
+
+var ErrorEmitter = new EventEmitter();
+var LogEmitter = new EventEmitter();
+
+
 var boxes = {};
 
 var server = http.createServer(function (req, res) {
@@ -36,7 +44,15 @@ var server = http.createServer(function (req, res) {
 		    clearTimeout(boxes[name]._timer);
 		    tmp_db=boxes[name].config._tmp_db;
 		}
-		boxes[name] = new sandbox.SandBox(d, {test: true, user: urlInfo.query.user || null, name: urlInfo.query.fileName || null, _tmp_db: tmp_db});
+		boxes[name] = new sandbox.SandBox(d, {test: true, user: urlInfo.query.user || null, name: urlInfo.query.fileName || null, _tmp_db: tmp_db, 
+						      error: function (e) {
+							  ErrorEmitter.emit(name, e);
+						      },
+						      log: function (l) {
+							  console.log("emmiting event", name);
+							  LogEmitter.emit(name, l);
+						      }
+						     });
 		boxes[name]._timer = setTimeout(function () {
 		    boxes[name] =null;
 		}, config.testTimeToLive);
@@ -60,4 +76,43 @@ setInterval(function () {
     console.log(config.checkOkCode);
 }, config.sendOkInterval);
 
+
+function print_clean(data) {
+    return data.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+}
+
+var base_live_console = fs.readFileSync('./static/live_console.html').toString()
+
+var live_console = http.createServer(function (req, res) {
+    res.end(base_live_console);
+});
+
+io = io.listen(live_console);
+
+io.sockets.on('connection', function (socket) {
+    var host=false;
+    function error_send(s) {
+	socket.send("<p style='color:red'>"+print_clean(s)+"</p>");
+    }
+    function log_send(s) {
+	socket.send("<p>"+print_clean(s)+"</p>");
+    }
+    socket.on('disconnect', function () {
+	if(host) {
+	    ErrorEmitter.removeListener(host, error_send);
+	    LogEmitter.removeListener(host, log_send);
+	}
+    });
+    socket.on('message',  function (data) {
+	if(host) return;
+	host = data;
+	console.log("setting up event", host);
+	ErrorEmitter.on(host, error_send);
+	LogEmitter.on(host, log_send);
+	socket.send("connected to: "+data);
+    });
+});
+
 server.listen(config.testPort);
+
+live_console.listen(config.testConsole);
