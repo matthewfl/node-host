@@ -1,6 +1,11 @@
 This is the code base from http://jsapp.us
 
 
+There is a Makefile to get you up and running quickly.
+1) git clone https://github.com/matthewfl/node-host.git
+2) cd node-host
+3) make
+
 To get started developing
 Install nginx ( http://nginx.org/ ) and load in the config file from devel/nginx.conf
 run: 
