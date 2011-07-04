@@ -26,3 +26,5 @@ exports.dbHost="";
 exports.dbSyncTime=10*1000;
 
 exports.deleteDomainFile="/home/matthew/jsapp_delete_domain"; // change this to some place that you can write to
+
+exports.npm_working_folder="/home/matthew/npm_working_folder"; // make this some temp folder or place where it can do the work of installing files
