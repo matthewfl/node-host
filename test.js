@@ -114,7 +114,7 @@ io.sockets.on('connection', function (socket) {
 	LogEmitter.on(host, log_send);
 	socket.send("Connected to: "+data+"<br>");
     });
-    socket.send("Connected to console");
+    socket.send("Loading Connection...<br>");
 });
 
 server.listen(config.testPort);
