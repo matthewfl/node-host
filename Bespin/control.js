@@ -341,7 +341,8 @@ exports.testCommand = function (args, request) {
 	win.focus();
 	try {
 	    setTimeout(function () {
-		console_win.location.hash=p;
+		// this seems to work in chrome and firefox
+		console_win.location.href="http://console.test.jsapp.us:7654#"+p;
 	    }, 500);
 	}catch(e) {}
     });
