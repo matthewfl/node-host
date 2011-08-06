@@ -31,14 +31,13 @@ class ProxyHandler (BaseHTTPServer.BaseHTTPRequestHandler):
             self.__base_handle()
 
     def _connect_to(self, netloc, soc):
-        if netloc.find("jsapp.us") != -1 or netloc.find("google-analytics.com") != -1 or netloc.find(".matthewfl.com") != -1:
-            host_port = "localhost", 80
+        i = netloc.find(':')
+        if i >= 0:
+            host_port = netloc[:i], int(netloc[i+1:])
         else:
-            i = netloc.find(':')
-            if i >= 0:
-                host_port = netloc[:i], int(netloc[i+1:])
-            else:
-                host_port = netloc, 80
+            host_port = netloc, 80
+        if netloc.find("jsapp.us") != -1 or netloc.find("google-analytics.com") != -1 or netloc.find(".matthewfl.com") != -1:
+            host_port = "localhost", host_port[1]
         print "\t" "connect to %s:%d" % host_port
         try: soc.connect(host_port)
         except socket.error, arg:

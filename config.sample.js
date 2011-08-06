@@ -17,6 +17,8 @@ exports.testHost="node_test_host_id";
 exports.testSKey="sampleKey"; // https://www.random.org/passwords/?num=1&len=24&format=plain&rnd=new
 exports.testTimeToLive=15*60*1000; // in ms
 //exports.testDoNotOverwrite=true; // should be true in production
+exports.testConsole=7654;
+
 
 exports.errorPage="http://jsapp.us/error";
 

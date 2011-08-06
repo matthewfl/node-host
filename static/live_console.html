@@ -1,0 +1,42 @@
+<html>
+  <head>
+    <title>Live console</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+var doScroll=true, ScrolledTriggered=false;
+window.onscroll=function (e) { if(ScrolledTriggered) ScrolledTriggered=false; else doScroll=false; };
+var hostSet=0;
+var socket = io.connect('http://'+location.host);
+socket.on('message', function (data) {
+document.body.innerHTML += data;
+if(data.indexOf("Connected to") != -1) clearInterval(hostSet);
+if(doScroll) {window.scrollBy(0, 250); ScrolledTriggered=true;}
+});
+function setHost () {
+host = location.hash.substring(location.hash.indexOf("//")+2);
+document.title = "Live console for "+host;
+// even sending this once the connect event fired, worked maybe 10% of the time, so idk what is wrong with socket io
+clearInterval(hostSet);
+hostSet = setInterval(function () {
+socket.send(host);
+}, 500);
+}
+var lastHash;
+setInterval(function () {
+if(lastHash!=location.hash) {
+setHost();
+lastHash=location.hash;
+}
+}, 200);
+    </script>
+    <style>
+      body {
+      width: 95%;
+      overflow: auto;
+      font: monospace;
+      }
+    </style>
+  </head>
+  <body>
+  </body>
+</html>

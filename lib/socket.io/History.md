@@ -1,0 +1,49 @@
+
+0.7.6 / 2011-06-30
+==================
+
+  * Fixed general dispatching when a client has closed.
+
+0.7.5 / 2011-06-30
+==================
+
+  * Fixed dispatching to clients that are disconnected.
+
+0.7.4 / 2011-06-30
+==================
+
+  * Fixed; only clear handlers if they were set. [level09]
+
+0.7.3 / 2011-06-30
+==================
+
+  * Exposed handshake data to clients.
+  * Refactored dispatcher interface.
+  * Changed; Moved id generation method into the manager.
+  * Added sub-namespace authorization. [3rd-Eden]
+  * Changed; normalized SocketNamespace local eventing [dvv]
+  * Changed; Use packet.reason or default to 'packet' [3rd-Eden]
+  * Changed console.error to console.log.
+  * Fixed; bind both servers at the same time do that the test never times out.
+  * Added 304 support.
+  * Removed `Transport#name` for abstract interface.
+  * Changed; lazily require http and https module only when needed. [3rd-Eden]
+
+0.7.2 / 2011-06-22
+==================
+
+  * Make sure to write a packet (of type `noop`) when closing a poll.
+    This solves a problem with cross-domain requests being flagged as aborted and
+    reconnection being triggered.
+  * Added `noop` message type.
+
+0.7.1 / 2011-06-21 
+==================
+
+  * Fixed cross-domain XHR.
+  * Added CORS test to xhr-polling suite.
+
+0.7.0 / 2010-06-21
+==================
+
+  * http://socket.io/announcement.html
