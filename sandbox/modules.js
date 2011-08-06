@@ -51,17 +51,19 @@ exports._http_client = function (context) {
 	}
     };
 };
-
+var util = require('util');
 exports.util = exports.sys = function (context) {
     function nothing () {}
     return {
-	prtin: nothing,
-	puts: nothing,
-	debug: nothing,
-	error: nothing,
-	inspect: nothing,
+	print: nothing,
+	puts: context.console.log,
+	debug: context.console.log,
+	error: context.console.log,
+	inspect: function () {
+	    context.console.log(util.inspect.apply(this, arguments));
+	},
 	p: nothing,
-	log: nothing,
+	log: context.console.log,
 	exec: nothing,
 	pump: require('sys').pump
     };
