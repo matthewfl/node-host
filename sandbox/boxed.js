@@ -3,6 +3,17 @@ exports={},
 __dirname="./",
 __filename="main.js";
 
+__server_function = function () {throw "server not implemented";};
+__server = function (s) { __server_function=s; };
+___server(function (req, res) {
+    function a () {
+	try {
+	__server_function(req, res);
+	}catch(e) {} // make this report the error
+    }
+    setTimeout(a, 0);
+});
+
 (function () {
     // this code runs with the client code
     
@@ -29,4 +40,5 @@ __filename="main.js";
     };
     global.Buffer = require('buffer').Buffer;
 })();
+
 

@@ -9,12 +9,12 @@ function nothing() {}
 function SandBox (code, config) {
     var self = this;
     self.config = config;
-    self.raw_server = function () {throw "server not implemented";};
+    self.raw_server = null;//function () {throw "server not implemented";};
     self.count=100000;
     self.last_count_time = Date.now();
     self.error = false;
     this.context={
-	__server: function (fun) { self.raw_server=fun || function () {throw "server not implemented";};},
+	___server: function (fun) { if(self.raw_server === null) self.raw_server=fun; },
 	__get_code: function (name) {
 	    if(modules[name]) {
 		if(typeof modules[name] == "string")
