@@ -5,8 +5,8 @@
 <style> 
 html {margin: 0;padding: 0;width: 100%;height: 100%;}
 body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
-#editor { margin: 0; padding: 0; width: 65%; height: 100%; overflow: hidden;}
-#entro { margin: 0; padding:0 width:32%; height: 100%; overflow: auto; position: absolute; top: 0px; left: 66%; }
+#editor { margin: 0; padding: 0; width: 67%; height: 100%; overflow: hidden;}
+#entro { margin: 0; padding:0 width:33%; height: 100%; overflow: auto; position: absolute; top: 0px; left: 67%; }
 .center{ text-align: center; }
 </style>
 <link rel="stylesheet" href="http://code.jquery.com/mobile/1.0.1/jquery.mobile-1.0.1.min.css" />
@@ -44,11 +44,11 @@ body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
   var _sideBarShown = true;
   function sideBar (show) {
       if(_sideBarShown = (show === null ? !_sideBarShown : show)) {
-	  $("#editor").css("width", "65%");
-	  $("#entro").css("width", "35%");
+	  $("#editor").css("width", "67%");
+	  $("#entro").show();//.css("width", "33%");
       }else{
 	  $("#editor").css("width", "100%");
-	  $("#entro").css("width", "0px");
+	  $("#entro").hide();//.css("width", "0px");
       }
       $("#editor")[0].bespin.dimensionsChanged();
   }
@@ -67,9 +67,9 @@ body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
 </script>
 </head> 
 <body>
-<div id="editor" class="bespin"  data-bespinoptions='{ "settings": { "tabstop": 2, "maxConsoleHeight": 150 }, "syntax": "js", "stealFocus": true }'></div>
+<div id="editor" class="bespin"  data-bespinoptions='{ "settings": { "tabstop": 2, "maxConsoleHeight": 150 }, "syntax": "js", "stealFocus": true }'>{CODE}</div>
 <div id="entro" data-role="page">
-  <div data-role="header">
+  <div data-role="header" style="width:34%">
     <a data-role="button" data-icon="star" href="#" onclick="window.external.AddFavorite(location.href, document.title);">Bookmark</a>
     <h3>Welcome to JsApp.US </h3>
     <a data-role="button" data-icon="delete" href="#" onclick="sideBar(false);">Hide</a>
@@ -79,7 +79,7 @@ body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
       <g:plusone href="http://jsapp.us"></g:plusone>
     </div>
   </div>
-  <div data-role="content" role="main">
+  <div data-role="content" role="main" style="width: 30%">
     <p>JsApp.US is a hosting platform for <a href="http://nodejs.org">node.js</a> applications.  It is setup to be a platform to coddle to quick, weekend hack like projects.</p>
     <p>To get started you can run the test command from the bottom command line or press <kbd>Control-b</kbd>.</p>
     <ul data-role="listview" data-inset="true">
