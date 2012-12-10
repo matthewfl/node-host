@@ -53,6 +53,8 @@ body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
       commandLine = $("#editor")[0].bespin.commandLine.execute;
       bespin.tiki.require('control');
   };
+  //prevent backspace history shortcut
+  window.addEventListener("keydown",function(e){if(e.keyCode == 8) e.preventDefault()})
   $("a").live('click', function () {
       var c = $(this).attr('cmd');
       if(c) {
