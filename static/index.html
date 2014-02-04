@@ -6,9 +6,12 @@
 html {margin: 0;padding: 0;width: 100%;height: 100%;}
 body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
 #editor { margin: 0; padding: 0; width: 65%; height: 100%; overflow: hidden;}
-#entro { margin: 0; padding:0 width:32%; height: 100%; overflow: auto; position: absolute; top: 0px; left: 66% }
+#entro { margin: 0; padding:0 width:32%; height: 100%; overflow: auto; position: absolute; top: 0px; left: 66%; }
+.center{ text-align: center; }
 </style>
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js"></script>
+<link rel="stylesheet" href="http://code.jquery.com/mobile/1.0.1/jquery.mobile-1.0.1.min.css" />
+<script src="http://code.jquery.com/jquery-1.6.4.min.js"></script>
+<script src="http://code.jquery.com/mobile/1.0.1/jquery.mobile-1.0.1.min.js"></script>
 <script>
   (function () {
       function check () {
@@ -64,47 +67,72 @@ body {margin: 0;padding: 0;width: 100%;height: 100%;overflow: hidden;}
 </script>
 </head> 
 <body>
-<div id="editor" class="bespin"  data-bespinoptions='{ "settings": { "tabstop": 2, "maxConsoleHeight": 150 }, "syntax": "js", "stealFocus": true }'>{CODE}</div>
-<div id="entro">
-<h2>Welcome to JsApp.US </h2><a href="http://twitter.com/share" class="twitter-share-button" data-url="http://jsapp.us" data-text="JSApp.US: quick way to try #nodejs and host web based node application" data-count="horizontal" data-related="matthewfl">Tweet</a> <iframe src="http://www.facebook.com/plugins/like.php?app_id=195846027142636&amp;href=https%3A%2F%2Fwww.facebook.com%2Fpages%2FJsApp%2F155238484554394&amp;send=false&amp;layout=button_count&amp;width=80&amp;show_faces=false&amp;action=like&amp;colorscheme=light&amp;font&amp;height=21" scrolling="no" frameborder="0" style="border:none; overflow:hidden; width:80px; height:21px;" allowTransparency="true"></iframe> <g:plusone href="http://jsapp.us"></g:plusone></h2>
-<p>JsApp.US is a hosting platform for <a href="http://nodejs.org">node.js</a> applications.  It is setup to be a platform to coddle to quick, weekend hack like projects.</p>
-<p>To get started you can run the test command from the bottom command line or press Control-b.</p>
-<br>
-Commands:
-<table border="0">
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#test" cmd="test">test</a></td><td>Ctrl-b</td><td>Run a quick test of the current file</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#login_logout" cmd="login">login</a></td><td>Ctrl-l</td><td>Login</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#newuser" cmd="newuser">newuser</a></td><td></td><td>create a new user</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#new" cmd="new">new</a></td><td>Ctrl-n</td><td>create a blank file</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki" cmd="docs">docs</a></td><td>Ctrl-h</td><td>Open the document wiki</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#sidebar" cmd="sidebar">sidebar</a></td><td></td><td>Toggle the showing of the sidebar</td></tr>
-</table>
-<br>
-Login is required for:
-<table border="0">
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#share" cmd="share">share</a></td><td></td><td>Share a file using a short url</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#save" cmd="save">save</a></td><td>Ctrl-s</td><td>Save a file to the virtual file system</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#open" cmd="open">open</a></td><td>Ctrl-o</td><td>Open a file by name</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#list" cmd="ls">list/ls</a></td><td></td><td>List files on virtual file system</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#delete" cmd="rm">delete/rm</a></td><td></td><td>Delete a file from the virtual file system</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#rename" cmd="mv">rename/mv</a></td><td></td><td>Rename a file on the virtual file system</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#profile" cmd="profile">profile</a></td><td></td><td>Edit a user profile</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#files" cmd="files">files</a></td><td></td><td>Manage files on the virtual file system</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#deploy" cmd="deploy">deploy</a></td><td></td><td>Deploy a project to a subdomain for public viewing</td></tr>
-  <tr><td><a href="https://github.com/matthewfl/node-host/wiki/Commands#login_logout" cmd="logout">logout</a></td><td>Ctrl-l</td><td></td></tr>
-</table>
-<br>
-<a href="#" onclick="sideBar(false);">Hide this sidebar</a>
-<br>
-<a href="https://github.com/matthewfl/node-host/wiki/Api" target="_blank">Database API</a>
-<br><a href="https://github.com/matthewfl/node-host/issues" target="_blank">Issue tracking</a>
-<br><a href="https://groups.google.com/group/jsapp-us" target="_blank">Mailing list</a>
-<br><a href="http://matthewfl.com/category/jsapp-us" target="_blank">Blog</a>
-</div>
-<script>
-  $.getScript('http://platform.twitter.com/widgets.js');
-  $.getScript('https://ssl.google-analytics.com/ga.js');
-  $.getScript('https://apis.google.com/js/plusone.js');
-</script>
+<div id="editor" class="bespin"  data-bespinoptions='{ "settings": { "tabstop": 2, "maxConsoleHeight": 150 }, "syntax": "js", "stealFocus": true }'></div>
+<div id="entro" data-role="page">
+  <div data-role="header">
+    <a data-role="button" data-icon="star" href="#" onclick="window.external.AddFavorite(location.href, document.title);">Bookmark</a>
+    <h3>Welcome to JsApp.US </h3>
+    <a data-role="button" data-icon="delete" href="#" onclick="sideBar(false);">Hide</a>
+    <div class="center">
+      <a href="http://twitter.com/share" class="twitter-share-button" data-url="http://jsapp.us" data-text="JSApp.US: quick way to try #nodejs and host web based node application" data-count="horizontal" data-related="matthewfl">Tweet</a>
+      <iframe src="http://www.facebook.com/plugins/like.php?app_id=195846027142636&amp;href=https%3A%2F%2Fwww.facebook.com%2Fpages%2FJsApp%2F155238484554394&amp;send=false&amp;layout=button_count&amp;width=80&amp;show_faces=false&amp;action=like&amp;colorscheme=light&amp;font&amp;height=21" scrolling="no" frameborder="0" style="border:none; overflow:hidden; width:80px; height:21px;" allowTransparency="true"></iframe>
+      <g:plusone href="http://jsapp.us"></g:plusone>
+    </div>
+  </div>
+  <div data-role="content" role="main">
+    <p>JsApp.US is a hosting platform for <a href="http://nodejs.org">node.js</a> applications.  It is setup to be a platform to coddle to quick, weekend hack like projects.</p>
+    <p>To get started you can run the test command from the bottom command line or press <kbd>Control-b</kbd>.</p>
+    <ul data-role="listview" data-inset="true">
+      <li data-role="list-divider" role="heading">
+          <h2>Commands:</h2></li>
+      <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#test" cmd="test">test <kbd>Ctrl-b</kbd>
+          <p><br>Test current file</p></a></li>
+      <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#login_logout" cmd="login">login <kbd>Ctrl-l</kbd>
+          <p><br>Login</p></a></li>
+      <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#newuser" cmd="newuser">newuser
+          <p><br>Create a new user</p></a></li>
+      <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#new" cmd="new">new <kbd>Ctrl-n</kbd>
+          <p><br>Create a blank file</p></a></li>
+      <li><a href="https://github.com/matthewfl/node-host/wiki" cmd="docs">docs <kbd>Ctrl-h</kbd> 
+          <p><br>Open the documentation wiki</p></a></li>
+      <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#sidebar" cmd="sidebar">sidebar
+          <p><br>Toggle the showing of the sidebar</p></a></li>
+    </ul>
+    <div data-role="collapsible" data-collapsed="false">
+      <h3>Login is required for:</h3>
+      <ul data-role="listview" data-inset="true">
+        <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#share" cmd="share">share
+          <p><br>Share a file using a short url</p></a></li>
+        <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#save" cmd="save">save <kbd>Ctrl-s</kbd>
+          <p><br>Save a file to the virtual file system</p></a></li>
+        <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#open" cmd="open">open <kbd>Ctrl-o</kbd>
+          <p><br>Open a file by name</p></a></li>
+        <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#list" cmd="ls">list/ls
+          <p><br>List files on virtual file system</p></a></li>
+        <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#delete" cmd="rm">delete/rm
+          <p><br>Delete a file from the virtual file system</p></a></li>
+        <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#rename" cmd="mv">rename/mv
+          <p><br>Rename a file on the virtual file system</p></a></li>
+        <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#profile" cmd="profile">profile
+          <p><br>Edit a user profile</p></a></li>
+        <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#files" cmd="files">files
+          <p><br>Manage files on the virtual file system</p></a></li>
+        <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#deploy" cmd="deploy">deploy
+          <p><br>Deploy a project to a subdomain for public viewing</p></a></li>
+        <li><a href="https://github.com/matthewfl/node-host/wiki/Commands#login_logout" cmd="logout">logout <kbd>Ctrl-l</kbd></a></li>
+      </ul>
+    </div>
+  </div>
+  <div data-role="footer" class="center">
+    <a href="https://github.com/matthewfl/node-host/wiki/Api" target="_blank">Database API</a>
+    <a href="https://github.com/matthewfl/node-host/issues" target="_blank">Issue tracking</a>
+    <a href="https://groups.google.com/group/jsapp-us" target="_blank">Mailing list</a>
+    <a href="http://matthewfl.com/category/jsapp-us" target="_blank">Blog</a></div>
+  </div>
+  <script>
+    $.getScript('http://platform.twitter.com/widgets.js');
+    $.getScript('https://ssl.google-analytics.com/ga.js');
+    $.getScript('https://apis.google.com/js/plusone.js');
+  </script>
 </body> 
 </html> 
